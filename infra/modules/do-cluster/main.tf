@@ -3,6 +3,9 @@ terraform {
     digitalocean = {
       source = "digitalocean/digitalocean"
     }
+    local = {
+      source = "hashicorp/local"
+    }
   }
 }
 
@@ -28,4 +31,10 @@ resource "digitalocean_kubernetes_cluster" "cluster" {
     size       = "s-2vcpu-2gb"
     node_count = var.node_count
   }
+}
+
+resource "local_file" "kube_config" {
+  filename = var.kube_path
+  sensitive_content = digitalocean_kubernetes_cluster.cluster.kube_config[0].raw_config
+  file_permission = "0400"
 }

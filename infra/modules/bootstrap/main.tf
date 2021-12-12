@@ -1,9 +1,6 @@
 
 terraform {
   required_providers {
-    github = {
-      source  = "integrations/github"
-    }
     kubernetes = {
       source  = "hashicorp/kubernetes"
     }
@@ -12,9 +9,6 @@ terraform {
     }
     flux = {
       source  = "fluxcd/flux"
-    }
-    tls = {
-      source  = "hashicorp/tls"
     }
   }
 }

@@ -27,5 +27,15 @@ Bootstrapping the cluster with FLux offers some pros and cons but if this were m
 ```
 export DIGITALOCEAN_TOKEN=<digital ocean token>
 export FLUX_TOKEN=<flux token to pull from git>
+export KUBECONFIG=$PWD/kube/config
 ```
 2. Navigate to the `infra/deploy` directory and run `terragrunt run-all apply`
+
+
+### Deploy Kubeflow
+
+Use older version of kustomize
+
+```
+python3 -c 'from passlib.hash import bcrypt; import getpass; print(bcrypt.using(rounds=12, ident="2y").hash(getpass.getpass()))'
+```

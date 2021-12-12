@@ -1,13 +1,12 @@
 
 variable "cluster_name" {
   type        = string
-  default     = "sxu"
   description = "Cluster name"
 }
 
 variable "region" {
   type        = string
-  default     = "nyc1"
+  default     = "sfo3"
   description = "Digital Ocean region for cluster"
 }
 
@@ -25,6 +24,11 @@ variable "node_count" {
 
 variable "node_size" {
   type        = string
-  default     = "s-2vpu-2gb"
+  default     = "s-4vcpu-8gb"
   description = "Size of the nodes in the cluster"
+}
+
+variable "kube_path" {
+  type = string
+  description = "Path to the kubeconfig"
 }
