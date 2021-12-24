@@ -11291,6 +11291,7 @@ data:
 kind: ConfigMap
 metadata:
   name: default-install-config-5cbhhbttg4
+  namespace: kubeflow
 ---
 apiVersion: v1
 data:
