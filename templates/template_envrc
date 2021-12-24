@@ -1,0 +1,4 @@
+export DIGITALOCEAN_TOKEN=
+export TERRAFORM_S3_BUCKET=
+export KUBECONFIG=$(pwd)/kube/config
+export GITHUB_TOKEN=

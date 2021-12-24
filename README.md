@@ -23,12 +23,7 @@ Terraform has a fairly simple provider available for Digital Ocean resources, wh
 
 Bootstrapping the cluster with FLux offers some pros and cons but if this were more of a production environment, I would say that this is an extremely useful tool to make sure all the resources in the cluster is being tracked with GitOps. We are using it here to ensure all the components we install can be consistent across different deployments (hopefully!).
 
-1. Set up environment with the following variables.
-```
-export DIGITALOCEAN_TOKEN=<digital ocean token>
-export FLUX_TOKEN=<flux token to pull from git>
-export KUBECONFIG=$PWD/kube/config
-```
+1. Set up environment with the following variables. Fill in the appropriate variables in the `templates/template_envrc` file and run `cp templates/template_envrc .envrc` from the repository's root directory.
 2. Navigate to the `infra/deploy` directory and run `terragrunt run-all apply`
 
 
