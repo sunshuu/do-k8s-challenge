@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: auth
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    istio-injection: disabled
+    istio-operator-managed: Reconcile
+  name: istio-system
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    eventing.knative.dev/release: v0.22.1
+    kustomize.component: knative
+  name: knative-eventing
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    istio-injection: enabled
+    serving.knative.dev/release: v0.22.1
+  name: knative-serving
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    control-plane: kubeflow
+    istio-injection: enabled
+  name: kubeflow
