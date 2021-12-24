@@ -39,3 +39,7 @@ Use older version of kustomize
 ```
 python3 -c 'from passlib.hash import bcrypt; import getpass; print(bcrypt.using(rounds=12, ident="2y").hash(getpass.getpass()))'
 ```
+
+
+- size of the nodes, needs a lot of memory
+- volume limits 10, remember to delete them

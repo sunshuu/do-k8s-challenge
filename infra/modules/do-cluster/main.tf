@@ -28,7 +28,7 @@ resource "digitalocean_kubernetes_cluster" "cluster" {
 
   node_pool {
     name       = "worker-pool"
-    size       = "s-2vcpu-2gb"
+    size       = var.node_size
     node_count = var.node_count
   }
 }
