@@ -2213,6 +2213,8 @@ spec:
           value: kubeflow-userid
         - name: USERID_PREFIX
           value: ""
+        - name: APP_SECURE_COOKIES
+          value: "false"
         image: public.ecr.aws/j1r0q0g6/notebooks/jupyter-web-app:v1.4
         name: jupyter-web-app
         ports:

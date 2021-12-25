@@ -35,6 +35,25 @@ Use older version of kustomize
 python3 -c 'from passlib.hash import bcrypt; import getpass; print(bcrypt.using(rounds=12, ident="2y").hash(getpass.getpass()))'
 ```
 
+notes:
+APP_SECURE_COOKIES set to false jupyter
+
 
 - size of the nodes, needs a lot of memory
 - volume limits 10, remember to delete them
+
+`kubectl get svc -n istio-system istio-ingressgateway -o yaml | grep ip: | awk '{print $3}'`
+
+Login with admin@cannedlobster.net
+password is P@ssw0rd12345
+
+### MNIST on Kubeflow
+
+```
+kubectl -n mnist create configmap docker-config --from-literal=config.json=$(kubectl get secrets -n flux-system docker-config -o yaml | grep dockerconfigjson: | awk '{print $2}' | base64 -d)
+```
+ tensorflow/tensorflow:1.15.0-jupyter
+
+ pip install kubeflow-fairing
+
+ git clone https://github.com/kubeflow/examples.git git_kubeflow-examples

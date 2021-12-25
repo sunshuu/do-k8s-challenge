@@ -41,3 +41,8 @@ variable "branch" {
   default     = "main"
   description = "branch name"
 }
+
+variable "registry_name" {
+  type = string
+  description = "Digital Ocean registry name"
+}
