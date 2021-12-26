@@ -11,11 +11,11 @@ List of Tasks Performed:
 
 ### Prerequisites
 
-- (terraform)[https://www.terraform.io/downloads] and (terragrunt)[https://terragrunt.gruntwork.io/docs/getting-started/install/]
-- (direnv)[https://direnv.net/]
-- (kubectl)[https://kubernetes.io/docs/tasks/tools/]
-- (Flux CLI)[https://fluxcd.io/docs/installation/]
-- (K9s (optional))[https://github.com/derailed/k9s]
+- [terraform](https://www.terraform.io/downloads) and [terragrunt](https://terragrunt.gruntwork.io/docs/getting-started/install/)
+- [direnv](https://direnv.net/)
+- [kubectl](https://kubernetes.io/docs/tasks/tools/)
+- [flux](https://fluxcd.io/docs/installation/)
+- [K9s (optional)](https://github.com/derailed/k9s)
 
 - AWS S3 Credentials and Bucket name to use as the Terraform Backend.
   - If this is not desired, delete the `remote_state` block in `infra/deploy/terragrunt.hcl`
@@ -51,7 +51,7 @@ Now you have access to Kubeflow! There are tutorials in the home page and exampl
 
 How were the K8s manifests generated to deploy Kubeflow?
 
-> (These installation steps)[https://github.com/kubeflow/manifests#installation] will show how kustomize can be used to install it. WARNING: Ensure that you install the right version of kustomize (3.2.0) or else it will not work.
+> [These installation steps](https://github.com/kubeflow/manifests#installation) will show how kustomize can be used to install it. WARNING: Ensure that you install the right version of kustomize (3.2.0) or else it will not work.
 
 How to change the credentials for the login page?
 
