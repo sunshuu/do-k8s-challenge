@@ -1,7 +1,7 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1beta1
 kind: Kustomization
 metadata:
-  name: kubeflow-crds
+  name: kubeflow-configs
   namespace: flux-system
 spec:
   dependsOn:
@@ -9,6 +9,6 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: kubeflow/crds.yaml
+  path: kubeflow/configs
   prune: true
   interval: 1m0s
