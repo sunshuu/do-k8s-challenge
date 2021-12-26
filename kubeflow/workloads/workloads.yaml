@@ -1,0 +1,3964 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: dex
+  name: dex
+  namespace: auth
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dex
+  template:
+    metadata:
+      labels:
+        app: dex
+    spec:
+      containers:
+      - command:
+        - dex
+        - serve
+        - /etc/dex/cfg/config.yaml
+        env:
+        - name: KUBERNETES_POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        envFrom:
+        - secretRef:
+            name: dex-oidc-client
+        image: quay.io/dexidp/dex:v2.24.0
+        name: dex
+        ports:
+        - containerPort: 5556
+          name: http
+        volumeMounts:
+        - mountPath: /etc/dex/cfg
+          name: config
+      serviceAccountName: dex
+      volumes:
+      - configMap:
+          items:
+          - key: config.yaml
+            path: config.yaml
+          name: dex
+        name: config
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: cert-manager
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/instance: cert-manager
+    app.kubernetes.io/name: cert-manager
+  name: cert-manager
+  namespace: cert-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: controller
+      app.kubernetes.io/instance: cert-manager
+      app.kubernetes.io/name: cert-manager
+  template:
+    metadata:
+      annotations:
+        prometheus.io/path: /metrics
+        prometheus.io/port: "9402"
+        prometheus.io/scrape: "true"
+      labels:
+        app: cert-manager
+        app.kubernetes.io/component: controller
+        app.kubernetes.io/instance: cert-manager
+        app.kubernetes.io/name: cert-manager
+    spec:
+      containers:
+      - args:
+        - --v=2
+        - --cluster-resource-namespace=$(POD_NAMESPACE)
+        - --leader-election-namespace=kube-system
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        image: quay.io/jetstack/cert-manager-controller:v1.3.1
+        imagePullPolicy: IfNotPresent
+        name: cert-manager
+        ports:
+        - containerPort: 9402
+          protocol: TCP
+        resources: {}
+      serviceAccountName: cert-manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: cainjector
+    app.kubernetes.io/component: cainjector
+    app.kubernetes.io/instance: cert-manager
+    app.kubernetes.io/name: cainjector
+  name: cert-manager-cainjector
+  namespace: cert-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: cainjector
+      app.kubernetes.io/instance: cert-manager
+      app.kubernetes.io/name: cainjector
+  template:
+    metadata:
+      labels:
+        app: cainjector
+        app.kubernetes.io/component: cainjector
+        app.kubernetes.io/instance: cert-manager
+        app.kubernetes.io/name: cainjector
+    spec:
+      containers:
+      - args:
+        - --v=2
+        - --leader-election-namespace=kube-system
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        image: quay.io/jetstack/cert-manager-cainjector:v1.3.1
+        imagePullPolicy: IfNotPresent
+        name: cert-manager
+        resources: {}
+      serviceAccountName: cert-manager-cainjector
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: webhook
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/instance: cert-manager
+    app.kubernetes.io/name: webhook
+  name: cert-manager-webhook
+  namespace: cert-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: webhook
+      app.kubernetes.io/instance: cert-manager
+      app.kubernetes.io/name: webhook
+  template:
+    metadata:
+      labels:
+        app: webhook
+        app.kubernetes.io/component: webhook
+        app.kubernetes.io/instance: cert-manager
+        app.kubernetes.io/name: webhook
+    spec:
+      containers:
+      - args:
+        - --v=2
+        - --secure-port=10250
+        - --dynamic-serving-ca-secret-namespace=$(POD_NAMESPACE)
+        - --dynamic-serving-ca-secret-name=cert-manager-webhook-ca
+        - --dynamic-serving-dns-names=cert-manager-webhook,cert-manager-webhook.cert-manager,cert-manager-webhook.cert-manager.svc
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        image: quay.io/jetstack/cert-manager-webhook:v1.3.1
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /livez
+            port: 6080
+            scheme: HTTP
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: cert-manager
+        ports:
+        - containerPort: 10250
+          name: https
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: 6080
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources: {}
+      serviceAccountName: cert-manager-webhook
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: cluster-local-gateway
+    install.operator.istio.io/owning-resource: unknown
+    istio: cluster-local-gateway
+    istio.io/rev: default
+    operator.istio.io/component: IngressGateways
+    release: istio
+  name: cluster-local-gateway
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      app: cluster-local-gateway
+      istio: cluster-local-gateway
+  strategy:
+    rollingUpdate:
+      maxSurge: 100%
+      maxUnavailable: 25%
+  template:
+    metadata:
+      annotations:
+        prometheus.io/path: /stats/prometheus
+        prometheus.io/port: "15020"
+        prometheus.io/scrape: "true"
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: cluster-local-gateway
+        chart: gateways
+        heritage: Tiller
+        install.operator.istio.io/owning-resource: unknown
+        istio: cluster-local-gateway
+        istio.io/rev: default
+        operator.istio.io/component: IngressGateways
+        release: istio
+        service.istio.io/canonical-name: cluster-local-gateway
+        service.istio.io/canonical-revision: latest
+        sidecar.istio.io/inject: "false"
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - preference:
+              matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
+            weight: 2
+          - preference:
+              matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - ppc64le
+            weight: 2
+          - preference:
+              matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - s390x
+            weight: 2
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
+                - ppc64le
+                - s390x
+      containers:
+      - args:
+        - proxy
+        - router
+        - --domain
+        - $(POD_NAMESPACE).svc.cluster.local
+        - --proxyLogLevel=warning
+        - --proxyComponentLogLevel=misc:error
+        - --log_output_level=default:info
+        - --serviceCluster
+        - cluster-local-gateway
+        env:
+        - name: JWT_POLICY
+          value: third-party-jwt
+        - name: PILOT_CERT_PROVIDER
+          value: istiod
+        - name: CA_ADDR
+          value: istiod.istio-system.svc:15012
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: INSTANCE_IP
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: status.podIP
+        - name: HOST_IP
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: status.hostIP
+        - name: SERVICE_ACCOUNT
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.serviceAccountName
+        - name: CANONICAL_SERVICE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['service.istio.io/canonical-name']
+        - name: CANONICAL_REVISION
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['service.istio.io/canonical-revision']
+        - name: ISTIO_META_WORKLOAD_NAME
+          value: cluster-local-gateway
+        - name: ISTIO_META_OWNER
+          value: kubernetes://apis/apps/v1/namespaces/istio-system/deployments/cluster-local-gateway
+        - name: ISTIO_META_UNPRIVILEGED_POD
+          value: "true"
+        - name: ISTIO_META_ROUTER_MODE
+          value: sni-dnat
+        - name: ISTIO_META_CLUSTER_ID
+          value: Kubernetes
+        image: docker.io/istio/proxyv2:1.9.6
+        name: istio-proxy
+        ports:
+        - containerPort: 15020
+          protocol: TCP
+        - containerPort: 8080
+          protocol: TCP
+        - containerPort: 15090
+          name: http-envoy-prom
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 30
+          httpGet:
+            path: /healthz/ready
+            port: 15021
+            scheme: HTTP
+          initialDelaySeconds: 1
+          periodSeconds: 2
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 2000m
+            memory: 1024Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /etc/istio/proxy
+          name: istio-envoy
+        - mountPath: /etc/istio/config
+          name: config-volume
+        - mountPath: /var/run/secrets/istio
+          name: istiod-ca-cert
+        - mountPath: /var/run/secrets/tokens
+          name: istio-token
+          readOnly: true
+        - mountPath: /var/lib/istio/data
+          name: istio-data
+        - mountPath: /etc/istio/pod
+          name: podinfo
+        - mountPath: /etc/istio/ingressgateway-certs
+          name: ingressgateway-certs
+          readOnly: true
+        - mountPath: /etc/istio/ingressgateway-ca-certs
+          name: ingressgateway-ca-certs
+          readOnly: true
+      securityContext:
+        fsGroup: 1337
+        runAsGroup: 1337
+        runAsNonRoot: true
+        runAsUser: 1337
+      serviceAccountName: cluster-local-gateway-service-account
+      volumes:
+      - configMap:
+          name: istio-ca-root-cert
+        name: istiod-ca-cert
+      - downwardAPI:
+          items:
+          - fieldRef:
+              fieldPath: metadata.labels
+            path: labels
+          - fieldRef:
+              fieldPath: metadata.annotations
+            path: annotations
+          - path: cpu-limit
+            resourceFieldRef:
+              containerName: istio-proxy
+              divisor: 1m
+              resource: limits.cpu
+          - path: cpu-request
+            resourceFieldRef:
+              containerName: istio-proxy
+              divisor: 1m
+              resource: requests.cpu
+        name: podinfo
+      - emptyDir: {}
+        name: istio-envoy
+      - emptyDir: {}
+        name: istio-data
+      - name: istio-token
+        projected:
+          sources:
+          - serviceAccountToken:
+              audience: istio-ca
+              expirationSeconds: 43200
+              path: istio-token
+      - configMap:
+          name: istio
+          optional: true
+        name: config-volume
+      - name: ingressgateway-certs
+        secret:
+          optional: true
+          secretName: istio-ingressgateway-certs
+      - name: ingressgateway-ca-certs
+        secret:
+          optional: true
+          secretName: istio-ingressgateway-ca-certs
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: istio-ingressgateway
+    install.operator.istio.io/owning-resource: unknown
+    istio: ingressgateway
+    istio.io/rev: default
+    operator.istio.io/component: IngressGateways
+    release: istio
+  name: istio-ingressgateway
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      app: istio-ingressgateway
+      istio: ingressgateway
+  strategy:
+    rollingUpdate:
+      maxSurge: 100%
+      maxUnavailable: 25%
+  template:
+    metadata:
+      annotations:
+        prometheus.io/path: /stats/prometheus
+        prometheus.io/port: "15020"
+        prometheus.io/scrape: "true"
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: istio-ingressgateway
+        chart: gateways
+        heritage: Tiller
+        install.operator.istio.io/owning-resource: unknown
+        istio: ingressgateway
+        istio.io/rev: default
+        operator.istio.io/component: IngressGateways
+        release: istio
+        service.istio.io/canonical-name: istio-ingressgateway
+        service.istio.io/canonical-revision: latest
+        sidecar.istio.io/inject: "false"
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - preference:
+              matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
+            weight: 2
+          - preference:
+              matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - ppc64le
+            weight: 2
+          - preference:
+              matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - s390x
+            weight: 2
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
+                - ppc64le
+                - s390x
+      containers:
+      - args:
+        - proxy
+        - router
+        - --domain
+        - $(POD_NAMESPACE).svc.cluster.local
+        - --proxyLogLevel=warning
+        - --proxyComponentLogLevel=misc:error
+        - --log_output_level=default:info
+        - --serviceCluster
+        - istio-ingressgateway
+        env:
+        - name: JWT_POLICY
+          value: third-party-jwt
+        - name: PILOT_CERT_PROVIDER
+          value: istiod
+        - name: CA_ADDR
+          value: istiod.istio-system.svc:15012
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: INSTANCE_IP
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: status.podIP
+        - name: HOST_IP
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: status.hostIP
+        - name: SERVICE_ACCOUNT
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.serviceAccountName
+        - name: CANONICAL_SERVICE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['service.istio.io/canonical-name']
+        - name: CANONICAL_REVISION
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['service.istio.io/canonical-revision']
+        - name: ISTIO_META_WORKLOAD_NAME
+          value: istio-ingressgateway
+        - name: ISTIO_META_OWNER
+          value: kubernetes://apis/apps/v1/namespaces/istio-system/deployments/istio-ingressgateway
+        - name: ISTIO_META_UNPRIVILEGED_POD
+          value: "true"
+        - name: ISTIO_META_ROUTER_MODE
+          value: standard
+        - name: ISTIO_META_CLUSTER_ID
+          value: Kubernetes
+        image: docker.io/istio/proxyv2:1.9.6
+        name: istio-proxy
+        ports:
+        - containerPort: 15021
+          protocol: TCP
+        - containerPort: 8080
+          protocol: TCP
+        - containerPort: 8443
+          protocol: TCP
+        - containerPort: 31400
+          protocol: TCP
+        - containerPort: 15443
+          protocol: TCP
+        - containerPort: 15090
+          name: http-envoy-prom
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 30
+          httpGet:
+            path: /healthz/ready
+            port: 15021
+            scheme: HTTP
+          initialDelaySeconds: 1
+          periodSeconds: 2
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 2000m
+            memory: 1024Mi
+          requests:
+            cpu: 10m
+            memory: 40Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /etc/istio/proxy
+          name: istio-envoy
+        - mountPath: /etc/istio/config
+          name: config-volume
+        - mountPath: /var/run/secrets/istio
+          name: istiod-ca-cert
+        - mountPath: /var/run/secrets/tokens
+          name: istio-token
+          readOnly: true
+        - mountPath: /var/lib/istio/data
+          name: istio-data
+        - mountPath: /etc/istio/pod
+          name: podinfo
+        - mountPath: /etc/istio/ingressgateway-certs
+          name: ingressgateway-certs
+          readOnly: true
+        - mountPath: /etc/istio/ingressgateway-ca-certs
+          name: ingressgateway-ca-certs
+          readOnly: true
+      securityContext:
+        fsGroup: 1337
+        runAsGroup: 1337
+        runAsNonRoot: true
+        runAsUser: 1337
+      serviceAccountName: istio-ingressgateway-service-account
+      volumes:
+      - configMap:
+          name: istio-ca-root-cert
+        name: istiod-ca-cert
+      - downwardAPI:
+          items:
+          - fieldRef:
+              fieldPath: metadata.labels
+            path: labels
+          - fieldRef:
+              fieldPath: metadata.annotations
+            path: annotations
+          - path: cpu-limit
+            resourceFieldRef:
+              containerName: istio-proxy
+              divisor: 1m
+              resource: limits.cpu
+          - path: cpu-request
+            resourceFieldRef:
+              containerName: istio-proxy
+              divisor: 1m
+              resource: requests.cpu
+        name: podinfo
+      - emptyDir: {}
+        name: istio-envoy
+      - emptyDir: {}
+        name: istio-data
+      - name: istio-token
+        projected:
+          sources:
+          - serviceAccountToken:
+              audience: istio-ca
+              expirationSeconds: 43200
+              path: istio-token
+      - configMap:
+          name: istio
+          optional: true
+        name: config-volume
+      - name: ingressgateway-certs
+        secret:
+          optional: true
+          secretName: istio-ingressgateway-certs
+      - name: ingressgateway-ca-certs
+        secret:
+          optional: true
+          secretName: istio-ingressgateway-ca-certs
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: istiod
+    install.operator.istio.io/owning-resource: unknown
+    istio: pilot
+    istio.io/rev: default
+    operator.istio.io/component: Pilot
+    release: istio
+  name: istiod
+  namespace: istio-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      istio: pilot
+  strategy:
+    rollingUpdate:
+      maxSurge: 100%
+      maxUnavailable: 25%
+  template:
+    metadata:
+      annotations:
+        prometheus.io/port: "15014"
+        prometheus.io/scrape: "true"
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: istiod
+        install.operator.istio.io/owning-resource: unknown
+        istio: pilot
+        istio.io/rev: default
+        operator.istio.io/component: Pilot
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+      - args:
+        - discovery
+        - --monitoringAddr=:15014
+        - --log_output_level=default:info
+        - --domain
+        - cluster.local
+        - --keepaliveMaxServerConnectionAge
+        - 30m
+        env:
+        - name: REVISION
+          value: default
+        - name: JWT_POLICY
+          value: third-party-jwt
+        - name: PILOT_CERT_PROVIDER
+          value: istiod
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: SERVICE_ACCOUNT
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.serviceAccountName
+        - name: KUBECONFIG
+          value: /var/run/secrets/remote/config
+        - name: PILOT_TRACE_SAMPLING
+          value: "100"
+        - name: PILOT_ENABLE_PROTOCOL_SNIFFING_FOR_OUTBOUND
+          value: "true"
+        - name: PILOT_ENABLE_PROTOCOL_SNIFFING_FOR_INBOUND
+          value: "true"
+        - name: ISTIOD_ADDR
+          value: istiod.istio-system.svc:15012
+        - name: PILOT_ENABLE_ANALYSIS
+          value: "false"
+        - name: CLUSTER_ID
+          value: Kubernetes
+        - name: EXTERNAL_ISTIOD
+          value: "false"
+        image: docker.io/istio/pilot:1.9.6
+        name: discovery
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        - containerPort: 15010
+          protocol: TCP
+        - containerPort: 15017
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 1
+          periodSeconds: 3
+          timeoutSeconds: 5
+        resources:
+          requests:
+            cpu: 10m
+            memory: 100Mi
+        securityContext:
+          capabilities:
+            drop:
+            - ALL
+          runAsGroup: 1337
+          runAsNonRoot: true
+          runAsUser: 1337
+        volumeMounts:
+        - mountPath: /etc/istio/config
+          name: config-volume
+        - mountPath: /var/run/secrets/tokens
+          name: istio-token
+          readOnly: true
+        - mountPath: /var/run/secrets/istio-dns
+          name: local-certs
+        - mountPath: /etc/cacerts
+          name: cacerts
+          readOnly: true
+        - mountPath: /var/run/secrets/remote
+          name: istio-kubeconfig
+          readOnly: true
+        - mountPath: /var/lib/istio/inject
+          name: inject
+          readOnly: true
+      nodeSelector: {}
+      securityContext:
+        fsGroup: 1337
+      serviceAccountName: istiod-service-account
+      volumes:
+      - emptyDir:
+          medium: Memory
+        name: local-certs
+      - name: istio-token
+        projected:
+          sources:
+          - serviceAccountToken:
+              audience: istio-ca
+              expirationSeconds: 43200
+              path: istio-token
+      - name: cacerts
+        secret:
+          optional: true
+          secretName: cacerts
+      - name: istio-kubeconfig
+        secret:
+          optional: true
+          secretName: istio-kubeconfig
+      - configMap:
+          name: istio-sidecar-injector
+        name: inject
+      - configMap:
+          name: istio
+        name: config-volume
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    eventing.knative.dev/release: v0.22.1
+    knative.dev/high-availability: "true"
+    kustomize.component: knative
+  name: eventing-controller
+  namespace: knative-eventing
+spec:
+  selector:
+    matchLabels:
+      app: eventing-controller
+      app.kubernetes.io/component: knative-eventing
+      app.kubernetes.io/name: knative-eventing
+      kustomize.component: knative
+  template:
+    metadata:
+      labels:
+        app: eventing-controller
+        app.kubernetes.io/component: knative-eventing
+        app.kubernetes.io/name: knative-eventing
+        eventing.knative.dev/release: v0.22.1
+        kustomize.component: knative
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: eventing-controller
+                  app.kubernetes.io/component: knative-eventing
+                  app.kubernetes.io/name: knative-eventing
+                  kustomize.component: knative
+              topologyKey: kubernetes.io/hostname
+            weight: 100
+      containers:
+      - env:
+        - name: SYSTEM_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: CONFIG_LOGGING_NAME
+          value: config-logging
+        - name: CONFIG_OBSERVABILITY_NAME
+          value: config-observability
+        - name: METRICS_DOMAIN
+          value: knative.dev/eventing
+        - name: APISERVER_RA_IMAGE
+          value: gcr.io/knative-releases/knative.dev/eventing/cmd/apiserver_receive_adapter@sha256:a05b1db9acdfe901417307ddf403ec3702f219e5aeb25d692bc9542fc6421330
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        image: gcr.io/knative-releases/knative.dev/eventing/cmd/controller@sha256:6ddffbc286a84048cfd090193d00b4ecda25a3a7bf2de1a8e873f8b3755cc913
+        name: eventing-controller
+        ports:
+        - containerPort: 9090
+          name: metrics
+        - containerPort: 8008
+          name: profiling
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+        terminationMessagePolicy: FallbackToLogsOnError
+      enableServiceLinks: false
+      serviceAccountName: eventing-controller
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    eventing.knative.dev/release: v0.22.1
+    kustomize.component: knative
+  name: eventing-webhook
+  namespace: knative-eventing
+spec:
+  selector:
+    matchLabels:
+      app: eventing-webhook
+      app.kubernetes.io/component: knative-eventing
+      app.kubernetes.io/name: knative-eventing
+      kustomize.component: knative
+      role: eventing-webhook
+  template:
+    metadata:
+      labels:
+        app: eventing-webhook
+        app.kubernetes.io/component: knative-eventing
+        app.kubernetes.io/name: knative-eventing
+        kustomize.component: knative
+        role: eventing-webhook
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: eventing-webhook
+                  app.kubernetes.io/component: knative-eventing
+                  app.kubernetes.io/name: knative-eventing
+                  kustomize.component: knative
+              topologyKey: kubernetes.io/hostname
+            weight: 100
+      containers:
+      - env:
+        - name: SYSTEM_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: CONFIG_LOGGING_NAME
+          value: config-logging
+        - name: METRICS_DOMAIN
+          value: knative.dev/eventing
+        - name: WEBHOOK_NAME
+          value: eventing-webhook
+        - name: WEBHOOK_PORT
+          value: "8443"
+        - name: SINK_BINDING_SELECTION_MODE
+          value: exclusion
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        image: gcr.io/knative-releases/knative.dev/eventing/cmd/webhook@sha256:9f70a2a8bb78781472fba0327c5d6ff91f13a29736d4502bf8ad3d60d3f16ccd
+        livenessProbe:
+          httpGet:
+            httpHeaders:
+            - name: k-kubelet-probe
+              value: webhook
+            port: 8443
+            scheme: HTTPS
+          initialDelaySeconds: 20
+          periodSeconds: 1
+        name: eventing-webhook
+        ports:
+        - containerPort: 8443
+          name: https-webhook
+        - containerPort: 9090
+          name: metrics
+        - containerPort: 8008
+          name: profiling
+        readinessProbe:
+          httpGet:
+            httpHeaders:
+            - name: k-kubelet-probe
+              value: webhook
+            port: 8443
+            scheme: HTTPS
+          periodSeconds: 1
+        resources:
+          limits:
+            cpu: 200m
+            memory: 200Mi
+          requests:
+            cpu: 100m
+            memory: 50Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+        terminationMessagePolicy: FallbackToLogsOnError
+      enableServiceLinks: false
+      serviceAccountName: eventing-webhook
+      terminationGracePeriodSeconds: 300
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    eventing.knative.dev/release: v0.22.1
+    knative.dev/high-availability: "true"
+    kustomize.component: knative
+  name: imc-controller
+  namespace: knative-eventing
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: knative-eventing
+      app.kubernetes.io/name: knative-eventing
+      kustomize.component: knative
+      messaging.knative.dev/channel: in-memory-channel
+      messaging.knative.dev/role: controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: knative-eventing
+        app.kubernetes.io/name: knative-eventing
+        kustomize.component: knative
+        messaging.knative.dev/channel: in-memory-channel
+        messaging.knative.dev/role: controller
+    spec:
+      containers:
+      - env:
+        - name: CONFIG_LOGGING_NAME
+          value: config-logging
+        - name: CONFIG_OBSERVABILITY_NAME
+          value: config-observability
+        - name: METRICS_DOMAIN
+          value: knative.dev/inmemorychannel-controller
+        - name: SYSTEM_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: DISPATCHER_IMAGE
+          value: gcr.io/knative-releases/knative.dev/eventing/cmd/in_memory/channel_dispatcher@sha256:a6983f71c04619928199cc21e07ee6f1e1c87586621bc03b10c9ba1abd92bfa8
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        image: gcr.io/knative-releases/knative.dev/eventing/cmd/in_memory/channel_controller@sha256:904f42a768a9bc64999e7302d2bc7c1c48a08e74a82355cf57be513e6a124b82
+        name: controller
+        ports:
+        - containerPort: 9090
+          name: metrics
+        - containerPort: 8008
+          name: profiling
+        securityContext:
+          allowPrivilegeEscalation: false
+      enableServiceLinks: false
+      serviceAccountName: imc-controller
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    eventing.knative.dev/release: v0.22.1
+    knative.dev/high-availability: "true"
+    kustomize.component: knative
+  name: imc-dispatcher
+  namespace: knative-eventing
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: knative-eventing
+      app.kubernetes.io/name: knative-eventing
+      kustomize.component: knative
+      messaging.knative.dev/channel: in-memory-channel
+      messaging.knative.dev/role: dispatcher
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: knative-eventing
+        app.kubernetes.io/name: knative-eventing
+        kustomize.component: knative
+        messaging.knative.dev/channel: in-memory-channel
+        messaging.knative.dev/role: dispatcher
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/component: knative-eventing
+                  app.kubernetes.io/name: knative-eventing
+                  kustomize.component: knative
+                  messaging.knative.dev/channel: in-memory-channel
+                  messaging.knative.dev/role: dispatcher
+              topologyKey: kubernetes.io/hostname
+            weight: 100
+      containers:
+      - env:
+        - name: CONFIG_LOGGING_NAME
+          value: config-logging
+        - name: CONFIG_OBSERVABILITY_NAME
+          value: config-observability
+        - name: METRICS_DOMAIN
+          value: knative.dev/inmemorychannel-dispatcher
+        - name: SYSTEM_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: CONTAINER_NAME
+          value: dispatcher
+        - name: MAX_IDLE_CONNS
+          value: "1000"
+        - name: MAX_IDLE_CONNS_PER_HOST
+          value: "1000"
+        image: gcr.io/knative-releases/knative.dev/eventing/cmd/in_memory/channel_dispatcher@sha256:a6983f71c04619928199cc21e07ee6f1e1c87586621bc03b10c9ba1abd92bfa8
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 2
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: dispatcher
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 9090
+          name: metrics
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: 8080
+            scheme: HTTP
+          periodSeconds: 2
+          successThreshold: 1
+          timeoutSeconds: 1
+      enableServiceLinks: false
+      serviceAccountName: imc-dispatcher
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    eventing.knative.dev/release: v0.22.1
+    kustomize.component: knative
+  name: mt-broker-controller
+  namespace: knative-eventing
+spec:
+  selector:
+    matchLabels:
+      app: mt-broker-controller
+      app.kubernetes.io/component: knative-eventing
+      app.kubernetes.io/name: knative-eventing
+      kustomize.component: knative
+  template:
+    metadata:
+      labels:
+        app: mt-broker-controller
+        app.kubernetes.io/component: knative-eventing
+        app.kubernetes.io/name: knative-eventing
+        eventing.knative.dev/release: v0.22.1
+        kustomize.component: knative
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: mt-broker-controller
+                  app.kubernetes.io/component: knative-eventing
+                  app.kubernetes.io/name: knative-eventing
+                  kustomize.component: knative
+              topologyKey: kubernetes.io/hostname
+            weight: 100
+      containers:
+      - env:
+        - name: SYSTEM_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: CONFIG_LOGGING_NAME
+          value: config-logging
+        - name: CONFIG_OBSERVABILITY_NAME
+          value: config-observability
+        - name: METRICS_DOMAIN
+          value: knative.dev/eventing
+        - name: BROKER_INJECTION_DEFAULT
+          value: "false"
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        image: gcr.io/knative-releases/knative.dev/eventing/cmd/mtchannel_broker@sha256:a2678934d280ea19b0804cc7757d559a0312e2acea221b17a99bd830cd9eeaac
+        name: mt-broker-controller
+        ports:
+        - containerPort: 9090
+          name: metrics
+        - containerPort: 8008
+          name: profiling
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+        terminationMessagePolicy: FallbackToLogsOnError
+      enableServiceLinks: false
+      serviceAccountName: eventing-controller
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    eventing.knative.dev/release: v0.22.1
+    kustomize.component: knative
+  name: mt-broker-filter
+  namespace: knative-eventing
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: knative-eventing
+      app.kubernetes.io/name: knative-eventing
+      eventing.knative.dev/brokerRole: filter
+      kustomize.component: knative
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: knative-eventing
+        app.kubernetes.io/name: knative-eventing
+        eventing.knative.dev/brokerRole: filter
+        eventing.knative.dev/release: v0.22.1
+        kustomize.component: knative
+    spec:
+      containers:
+      - env:
+        - name: SYSTEM_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: CONTAINER_NAME
+          value: filter
+        - name: CONFIG_LOGGING_NAME
+          value: config-logging
+        - name: CONFIG_OBSERVABILITY_NAME
+          value: config-observability
+        - name: METRICS_DOMAIN
+          value: knative.dev/internal/eventing
+        - name: FILTER_PORT
+          value: "8080"
+        image: gcr.io/knative-releases/knative.dev/eventing/cmd/broker/filter@sha256:0e25aa1613a3a1779b3f7b7f863e651e5f37520a7f6808ccad2164cc2b6a9b12
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 2
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: filter
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 9092
+          name: metrics
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: 8080
+            scheme: HTTP
+          periodSeconds: 2
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: FallbackToLogsOnError
+      enableServiceLinks: false
+      serviceAccountName: mt-broker-filter
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    eventing.knative.dev/release: v0.22.1
+    kustomize.component: knative
+  name: mt-broker-ingress
+  namespace: knative-eventing
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: knative-eventing
+      app.kubernetes.io/name: knative-eventing
+      eventing.knative.dev/brokerRole: ingress
+      kustomize.component: knative
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: knative-eventing
+        app.kubernetes.io/name: knative-eventing
+        eventing.knative.dev/brokerRole: ingress
+        eventing.knative.dev/release: v0.22.1
+        kustomize.component: knative
+    spec:
+      containers:
+      - env:
+        - name: SYSTEM_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: CONTAINER_NAME
+          value: ingress
+        - name: CONFIG_LOGGING_NAME
+          value: config-logging
+        - name: CONFIG_OBSERVABILITY_NAME
+          value: config-observability
+        - name: METRICS_DOMAIN
+          value: knative.dev/internal/eventing
+        - name: INGRESS_PORT
+          value: "8080"
+        image: gcr.io/knative-releases/knative.dev/eventing/cmd/broker/ingress@sha256:cf579f88aa2a37c240e25bb886c1ef5404e326e12c7caf571e49308612243eee
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 2
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: ingress
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 9092
+          name: metrics
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: 8080
+            scheme: HTTP
+          periodSeconds: 2
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: FallbackToLogsOnError
+      enableServiceLinks: false
+      serviceAccountName: mt-broker-ingress
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    eventing.knative.dev/release: v0.22.1
+    kustomize.component: knative
+  name: pingsource-mt-adapter
+  namespace: knative-eventing
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: knative-eventing
+      app.kubernetes.io/name: knative-eventing
+      eventing.knative.dev/source: ping-source-controller
+      kustomize.component: knative
+      sources.knative.dev/role: adapter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: knative-eventing
+        app.kubernetes.io/name: knative-eventing
+        eventing.knative.dev/release: v0.22.1
+        eventing.knative.dev/source: ping-source-controller
+        kustomize.component: knative
+        sources.knative.dev/role: adapter
+    spec:
+      containers:
+      - env:
+        - name: SYSTEM_NAMESPACE
+          value: ""
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: K_METRICS_CONFIG
+          value: ""
+        - name: K_LOGGING_CONFIG
+          value: ""
+        - name: K_LEADER_ELECTION_CONFIG
+          value: ""
+        - name: K_NO_SHUTDOWN_AFTER
+          value: ""
+        - name: K_SINK_TIMEOUT
+          value: "-1"
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        image: gcr.io/knative-releases/knative.dev/eventing/cmd/mtping@sha256:edf462d03591e53e536640591a53538e6bea837fea15ed081eccfb42bc35a5c0
+        name: dispatcher
+        ports:
+        - containerPort: 9090
+          name: metrics
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 2048Mi
+          requests:
+            cpu: 125m
+            memory: 64Mi
+      enableServiceLinks: false
+      serviceAccountName: pingsource-mt-adapter
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    serving.knative.dev/release: v0.22.1
+  name: activator
+  namespace: knative-serving
+spec:
+  selector:
+    matchLabels:
+      app: activator
+      role: activator
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
+        sidecar.istio.io/inject: "true"
+      labels:
+        app: activator
+        role: activator
+        serving.knative.dev/release: v0.22.1
+    spec:
+      containers:
+      - env:
+        - name: GOGC
+          value: "500"
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: SYSTEM_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: CONFIG_LOGGING_NAME
+          value: config-logging
+        - name: CONFIG_OBSERVABILITY_NAME
+          value: config-observability
+        - name: METRICS_DOMAIN
+          value: knative.dev/internal/serving
+        image: gcr.io/knative-releases/knative.dev/serving/cmd/activator@sha256:fed92af8b9779c97482906db8857f27b5d4826708b75d0298aa30fad8900671f
+        livenessProbe:
+          failureThreshold: 12
+          httpGet:
+            httpHeaders:
+            - name: k-kubelet-probe
+              value: activator
+            port: 8012
+          initialDelaySeconds: 15
+        name: activator
+        ports:
+        - containerPort: 9090
+          name: metrics
+        - containerPort: 8008
+          name: profiling
+        - containerPort: 8012
+          name: http1
+        - containerPort: 8013
+          name: h2c
+        readinessProbe:
+          failureThreshold: 12
+          httpGet:
+            httpHeaders:
+            - name: k-kubelet-probe
+              value: activator
+            port: 8012
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 600Mi
+          requests:
+            cpu: 300m
+            memory: 60Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+      serviceAccountName: controller
+      terminationGracePeriodSeconds: 600
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    serving.knative.dev/release: v0.22.1
+  name: autoscaler
+  namespace: knative-serving
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: autoscaler
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
+        sidecar.istio.io/inject: "true"
+      labels:
+        app: autoscaler
+        serving.knative.dev/release: v0.22.1
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: autoscaler
+              topologyKey: kubernetes.io/hostname
+            weight: 100
+      containers:
+      - env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: SYSTEM_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: CONFIG_LOGGING_NAME
+          value: config-logging
+        - name: CONFIG_OBSERVABILITY_NAME
+          value: config-observability
+        - name: METRICS_DOMAIN
+          value: knative.dev/serving
+        image: gcr.io/knative-releases/knative.dev/serving/cmd/autoscaler@sha256:bc5ae3090ab0322ed0e4f9efddb60fa85f6ff3a29156411d24d0e4764b18eba7
+        livenessProbe:
+          failureThreshold: 6
+          httpGet:
+            httpHeaders:
+            - name: k-kubelet-probe
+              value: autoscaler
+            port: 8080
+        name: autoscaler
+        ports:
+        - containerPort: 9090
+          name: metrics
+        - containerPort: 8008
+          name: profiling
+        - containerPort: 8080
+          name: websocket
+        readinessProbe:
+          httpGet:
+            httpHeaders:
+            - name: k-kubelet-probe
+              value: autoscaler
+            port: 8080
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 1000Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+      serviceAccountName: controller
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    serving.knative.dev/release: v0.22.1
+  name: controller
+  namespace: knative-serving
+spec:
+  selector:
+    matchLabels:
+      app: controller
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+        sidecar.istio.io/inject: "true"
+      labels:
+        app: controller
+        serving.knative.dev/release: v0.22.1
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: controller
+              topologyKey: kubernetes.io/hostname
+            weight: 100
+      containers:
+      - env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: SYSTEM_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: CONFIG_LOGGING_NAME
+          value: config-logging
+        - name: CONFIG_OBSERVABILITY_NAME
+          value: config-observability
+        - name: METRICS_DOMAIN
+          value: knative.dev/internal/serving
+        image: gcr.io/knative-releases/knative.dev/serving/cmd/controller@sha256:bd7c6350e5d5c4edaa197a86fb96cff78bdd3e61f33fcb77aa60930de0ec0827
+        name: controller
+        ports:
+        - containerPort: 9090
+          name: metrics
+        - containerPort: 8008
+          name: profiling
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 1000Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+      serviceAccountName: controller
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    networking.knative.dev/ingress-provider: istio
+    serving.knative.dev/release: v0.22.1
+  name: istio-webhook
+  namespace: knative-serving
+spec:
+  selector:
+    matchLabels:
+      app: istio-webhook
+      role: istio-webhook
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
+        sidecar.istio.io/inject: "true"
+      labels:
+        app: istio-webhook
+        role: istio-webhook
+        serving.knative.dev/release: v0.22.1
+    spec:
+      containers:
+      - env:
+        - name: SYSTEM_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: CONFIG_LOGGING_NAME
+          value: config-logging
+        - name: CONFIG_OBSERVABILITY_NAME
+          value: config-observability
+        - name: METRICS_DOMAIN
+          value: knative.dev/net-istio
+        - name: WEBHOOK_NAME
+          value: istio-webhook
+        image: gcr.io/knative-releases/knative.dev/net-istio/cmd/webhook@sha256:1e371db6b1a9f9265fc7a55d15d98c935c0c28925ffde351fb3b93f331c5a08e
+        name: webhook
+        ports:
+        - containerPort: 9090
+          name: metrics
+        - containerPort: 8008
+          name: profiling
+        - containerPort: 8443
+          name: https-webhook
+        resources:
+          limits:
+            cpu: 200m
+            memory: 200Mi
+          requests:
+            cpu: 20m
+            memory: 20Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+      serviceAccountName: controller
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    networking.knative.dev/ingress-provider: istio
+    serving.knative.dev/release: v0.22.1
+  name: networking-istio
+  namespace: knative-serving
+spec:
+  selector:
+    matchLabels:
+      app: networking-istio
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+        sidecar.istio.io/inject: "true"
+      labels:
+        app: networking-istio
+        serving.knative.dev/release: v0.22.1
+    spec:
+      containers:
+      - env:
+        - name: SYSTEM_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: CONFIG_LOGGING_NAME
+          value: config-logging
+        - name: CONFIG_OBSERVABILITY_NAME
+          value: config-observability
+        - name: METRICS_DOMAIN
+          value: knative.dev/net-istio
+        image: gcr.io/knative-releases/knative.dev/net-istio/cmd/controller@sha256:ff8680da52ef47b8573ebc3393cbfa2f0f14b05c1e02232807f22699adbef57a
+        name: networking-istio
+        ports:
+        - containerPort: 9090
+          name: metrics
+        - containerPort: 8008
+          name: profiling
+        resources:
+          limits:
+            cpu: 300m
+            memory: 400Mi
+          requests:
+            cpu: 30m
+            memory: 40Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+      serviceAccountName: controller
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    serving.knative.dev/release: v0.22.1
+  name: webhook
+  namespace: knative-serving
+spec:
+  selector:
+    matchLabels:
+      app: webhook
+      role: webhook
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
+        sidecar.istio.io/inject: "true"
+      labels:
+        app: webhook
+        role: webhook
+        serving.knative.dev/release: v0.22.1
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: webhook
+              topologyKey: kubernetes.io/hostname
+            weight: 100
+      containers:
+      - env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: SYSTEM_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: CONFIG_LOGGING_NAME
+          value: config-logging
+        - name: CONFIG_OBSERVABILITY_NAME
+          value: config-observability
+        - name: WEBHOOK_NAME
+          value: webhook
+        - name: WEBHOOK_PORT
+          value: "8443"
+        - name: METRICS_DOMAIN
+          value: knative.dev/internal/serving
+        image: gcr.io/knative-releases/knative.dev/serving/cmd/webhook@sha256:6f41d379f1aacdfbb8f6d4f539e1769040e4f01bff3ad9c249b427e54dc56ea8
+        livenessProbe:
+          failureThreshold: 6
+          httpGet:
+            httpHeaders:
+            - name: k-kubelet-probe
+              value: webhook
+            port: 8443
+            scheme: HTTPS
+          initialDelaySeconds: 20
+          periodSeconds: 1
+        name: webhook
+        ports:
+        - containerPort: 9090
+          name: metrics
+        - containerPort: 8008
+          name: profiling
+        - containerPort: 8443
+          name: https-webhook
+        readinessProbe:
+          httpGet:
+            httpHeaders:
+            - name: k-kubelet-probe
+              value: webhook
+            port: 8443
+            scheme: HTTPS
+          periodSeconds: 1
+        resources:
+          limits:
+            cpu: 500m
+            memory: 500Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+      serviceAccountName: controller
+      terminationGracePeriodSeconds: 300
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: poddefaults
+    app.kubernetes.io/component: poddefaults
+    app.kubernetes.io/name: poddefaults
+    kustomize.component: poddefaults
+  name: admission-webhook-deployment
+  namespace: kubeflow
+spec:
+  selector:
+    matchLabels:
+      app: poddefaults
+      app.kubernetes.io/component: poddefaults
+      app.kubernetes.io/name: poddefaults
+      kustomize.component: poddefaults
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: poddefaults
+        app.kubernetes.io/component: poddefaults
+        app.kubernetes.io/name: poddefaults
+        kustomize.component: poddefaults
+    spec:
+      containers:
+      - args:
+        - --tlsCertFile=/etc/webhook/certs/tls.crt
+        - --tlsKeyFile=/etc/webhook/certs/tls.key
+        image: public.ecr.aws/j1r0q0g6/notebooks/admission-webhook:v1.4
+        name: admission-webhook
+        ports:
+        - containerPort: 4443
+          name: https-webhook
+        volumeMounts:
+        - mountPath: /etc/webhook/certs
+          name: webhook-cert
+          readOnly: true
+      serviceAccountName: admission-webhook-service-account
+      volumes:
+      - name: webhook-cert
+        secret:
+          secretName: webhook-certs
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: cache-deployer
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: cache-deployer-deployment
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cache-deployer
+      app.kubernetes.io/component: ml-pipeline
+      app.kubernetes.io/name: kubeflow-pipelines
+      application-crd-id: kubeflow-pipelines
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: cache-deployer
+        app.kubernetes.io/component: ml-pipeline
+        app.kubernetes.io/name: kubeflow-pipelines
+        application-crd-id: kubeflow-pipelines
+    spec:
+      containers:
+      - env:
+        - name: NAMESPACE_TO_WATCH
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        image: gcr.io/ml-pipeline/cache-deployer:1.7.0
+        imagePullPolicy: Always
+        name: main
+      restartPolicy: Always
+      serviceAccountName: kubeflow-pipelines-cache-deployer-sa
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: cache-server
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: cache-server
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cache-server
+      app.kubernetes.io/component: ml-pipeline
+      app.kubernetes.io/name: kubeflow-pipelines
+      application-crd-id: kubeflow-pipelines
+  template:
+    metadata:
+      labels:
+        app: cache-server
+        app.kubernetes.io/component: ml-pipeline
+        app.kubernetes.io/name: kubeflow-pipelines
+        application-crd-id: kubeflow-pipelines
+    spec:
+      containers:
+      - args:
+        - --db_driver=$(DBCONFIG_DRIVER)
+        - --db_host=$(DBCONFIG_HOST_NAME)
+        - --db_port=$(DBCONFIG_PORT)
+        - --db_name=$(DBCONFIG_DB_NAME)
+        - --db_user=$(DBCONFIG_USER)
+        - --db_password=$(DBCONFIG_PASSWORD)
+        - --namespace_to_watch=$(NAMESPACE_TO_WATCH)
+        env:
+        - name: CACHE_IMAGE
+          valueFrom:
+            configMapKeyRef:
+              key: cacheImage
+              name: pipeline-install-config
+        - name: CACHE_NODE_RESTRICTIONS
+          valueFrom:
+            configMapKeyRef:
+              key: cacheNodeRestrictions
+              name: pipeline-install-config
+        - name: DBCONFIG_DRIVER
+          value: mysql
+        - name: DBCONFIG_DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              key: cacheDb
+              name: pipeline-install-config
+        - name: DBCONFIG_HOST_NAME
+          valueFrom:
+            configMapKeyRef:
+              key: dbHost
+              name: pipeline-install-config
+        - name: DBCONFIG_PORT
+          valueFrom:
+            configMapKeyRef:
+              key: dbPort
+              name: pipeline-install-config
+        - name: DBCONFIG_USER
+          valueFrom:
+            secretKeyRef:
+              key: username
+              name: mysql-secret
+        - name: DBCONFIG_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: mysql-secret
+        - name: NAMESPACE_TO_WATCH
+          value: ""
+        image: gcr.io/ml-pipeline/cache-server:1.7.0
+        imagePullPolicy: Always
+        name: server
+        ports:
+        - containerPort: 8443
+          name: webhook-api
+        volumeMounts:
+        - mountPath: /etc/webhook/certs
+          name: webhook-tls-certs
+          readOnly: true
+      serviceAccountName: kubeflow-pipelines-cache
+      volumes:
+      - name: webhook-tls-certs
+        secret:
+          secretName: webhook-server-tls
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: centraldashboard
+    app.kubernetes.io/component: centraldashboard
+    app.kubernetes.io/name: centraldashboard
+    kustomize.component: centraldashboard
+  name: centraldashboard
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: centraldashboard
+      app.kubernetes.io/component: centraldashboard
+      app.kubernetes.io/name: centraldashboard
+      kustomize.component: centraldashboard
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: centraldashboard
+        app.kubernetes.io/component: centraldashboard
+        app.kubernetes.io/name: centraldashboard
+        kustomize.component: centraldashboard
+    spec:
+      containers:
+      - env:
+        - name: USERID_HEADER
+          value: kubeflow-userid
+        - name: USERID_PREFIX
+          value: ""
+        - name: PROFILES_KFAM_SERVICE_HOST
+          value: profiles-kfam.kubeflow
+        - name: REGISTRATION_FLOW
+          value: "false"
+        - name: DASHBOARD_LINKS_CONFIGMAP
+          value: centraldashboard-config
+        image: public.ecr.aws/j1r0q0g6/notebooks/central-dashboard:v1.4
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8082
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        name: centraldashboard
+        ports:
+        - containerPort: 8082
+          protocol: TCP
+      serviceAccountName: centraldashboard
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: jupyter-web-app
+    kustomize.component: jupyter-web-app
+  name: jupyter-web-app-deployment
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jupyter-web-app
+      kustomize.component: jupyter-web-app
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: jupyter-web-app
+        kustomize.component: jupyter-web-app
+    spec:
+      containers:
+      - env:
+        - name: APP_PREFIX
+          value: /jupyter
+        - name: UI
+          value: default
+        - name: USERID_HEADER
+          value: kubeflow-userid
+        - name: USERID_PREFIX
+          value: ""
+        - name: APP_SECURE_COOKIES
+          value: "false"
+        image: public.ecr.aws/j1r0q0g6/notebooks/jupyter-web-app:v1.4
+        name: jupyter-web-app
+        ports:
+        - containerPort: 5000
+        volumeMounts:
+        - mountPath: /etc/config
+          name: config-volume
+        - mountPath: /src/apps/default/static/assets/logos
+          name: logos-volume
+      serviceAccountName: jupyter-web-app-service-account
+      volumes:
+      - configMap:
+          name: jupyter-web-app-config-c6mgtkmgh4
+        name: config-volume
+      - configMap:
+          name: jupyter-web-app-logos
+        name: logos-volume
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    katib.kubeflow.org/component: controller
+  name: katib-controller
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      katib.kubeflow.org/component: controller
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        sidecar.istio.io/inject: "false"
+      labels:
+        katib.kubeflow.org/component: controller
+    spec:
+      containers:
+      - args:
+        - --webhook-port=8443
+        - --trial-resources=Job.v1.batch
+        - --trial-resources=TFJob.v1.kubeflow.org
+        - --trial-resources=PyTorchJob.v1.kubeflow.org
+        - --trial-resources=MPIJob.v1.kubeflow.org
+        - --trial-resources=XGBoostJob.v1.kubeflow.org
+        command:
+        - ./katib-controller
+        env:
+        - name: KATIB_CORE_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        image: docker.io/kubeflowkatib/katib-controller:v0.12.0
+        name: katib-controller
+        ports:
+        - containerPort: 8443
+          name: webhook
+          protocol: TCP
+        - containerPort: 8080
+          name: metrics
+          protocol: TCP
+        volumeMounts:
+        - mountPath: /tmp/cert
+          name: cert
+          readOnly: true
+      serviceAccountName: katib-controller
+      volumes:
+      - name: cert
+        secret:
+          defaultMode: 420
+          secretName: katib-webhook-cert
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    katib.kubeflow.org/component: db-manager
+  name: katib-db-manager
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      katib.kubeflow.org/component: db-manager
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        katib.kubeflow.org/component: db-manager
+    spec:
+      containers:
+      - command:
+        - ./katib-db-manager
+        env:
+        - name: DB_NAME
+          value: mysql
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: MYSQL_ROOT_PASSWORD
+              name: katib-mysql-secrets
+        image: docker.io/kubeflowkatib/katib-db-manager:v0.12.0
+        livenessProbe:
+          exec:
+            command:
+            - /bin/grpc_health_probe
+            - -addr=:6789
+          failureThreshold: 5
+          initialDelaySeconds: 10
+          periodSeconds: 60
+        name: katib-db-manager
+        ports:
+        - containerPort: 6789
+          name: api
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    katib.kubeflow.org/component: mysql
+  name: katib-mysql
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      katib.kubeflow.org/component: mysql
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        katib.kubeflow.org/component: mysql
+    spec:
+      containers:
+      - args:
+        - --datadir
+        - /var/lib/mysql/datadir
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: MYSQL_ROOT_PASSWORD
+              name: katib-mysql-secrets
+        - name: MYSQL_ALLOW_EMPTY_PASSWORD
+          value: "true"
+        - name: MYSQL_DATABASE
+          value: katib
+        image: mysql:8.0.26
+        livenessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - mysqladmin ping -u root -p${MYSQL_ROOT_PASSWORD}
+          failureThreshold: 10
+          periodSeconds: 2
+        name: katib-mysql
+        ports:
+        - containerPort: 3306
+          name: dbapi
+        readinessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - mysql -D ${MYSQL_DATABASE} -u root -p${MYSQL_ROOT_PASSWORD} -e 'SELECT
+              1'
+          failureThreshold: 10
+          periodSeconds: 2
+        startupProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - mysqladmin ping -u root -p${MYSQL_ROOT_PASSWORD}
+          failureThreshold: 60
+          periodSeconds: 15
+        volumeMounts:
+        - mountPath: /var/lib/mysql
+          name: katib-mysql
+      volumes:
+      - name: katib-mysql
+        persistentVolumeClaim:
+          claimName: katib-mysql
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    katib.kubeflow.org/component: ui
+  name: katib-ui
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      katib.kubeflow.org/component: ui
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        katib.kubeflow.org/component: ui
+    spec:
+      containers:
+      - args:
+        - --port=8080
+        command:
+        - ./katib-ui
+        env:
+        - name: KATIB_CORE_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        image: docker.io/kubeflowkatib/katib-ui:v0.12.0
+        name: katib-ui
+        ports:
+        - containerPort: 8080
+          name: ui
+      serviceAccountName: katib-ui
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: kfserving
+    app.kubernetes.io/component: kfserving-models-web-app
+    app.kubernetes.io/name: kfserving
+    kustomize.component: kfserving-models-web-app
+  name: kfserving-models-web-app
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kfserving
+      app.kubernetes.io/component: kfserving-models-web-app
+      app.kubernetes.io/name: kfserving
+      kustomize.component: kfserving-models-web-app
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "true"
+      labels:
+        app: kfserving
+        app.kubernetes.io/component: kfserving-models-web-app
+        app.kubernetes.io/name: kfserving
+        kustomize.component: kfserving-models-web-app
+    spec:
+      containers:
+      - envFrom:
+        - configMapRef:
+            name: kfserving-models-web-app-config-mtgm8bbd98
+        image: kfserving/models-web-app:v0.6.1
+        imagePullPolicy: Always
+        name: kfserving-models-web-app
+        ports:
+        - containerPort: 5000
+      serviceAccountName: kfserving-models-web-app
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: kubeflow-pipelines-profile-controller
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: kubeflow-pipelines-profile-controller
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kubeflow-pipelines-profile-controller
+      app.kubernetes.io/component: ml-pipeline
+      app.kubernetes.io/name: kubeflow-pipelines
+      application-crd-id: kubeflow-pipelines
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: kubeflow-pipelines-profile-controller
+        app.kubernetes.io/component: ml-pipeline
+        app.kubernetes.io/name: kubeflow-pipelines
+        application-crd-id: kubeflow-pipelines
+    spec:
+      containers:
+      - command:
+        - python
+        - /hooks/sync.py
+        env:
+        - name: KFP_VERSION
+          valueFrom:
+            configMapKeyRef:
+              key: appVersion
+              name: pipeline-install-config
+        - name: KFP_DEFAULT_PIPELINE_ROOT
+          valueFrom:
+            configMapKeyRef:
+              key: defaultPipelineRoot
+              name: pipeline-install-config
+              optional: true
+        - name: MINIO_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              key: accesskey
+              name: mlpipeline-minio-artifact
+        - name: MINIO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              key: secretkey
+              name: mlpipeline-minio-artifact
+        envFrom:
+        - configMapRef:
+            name: kubeflow-pipelines-profile-controller-env-mgh6th2gff
+        image: python:3.7
+        name: profile-controller
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - mountPath: /hooks
+          name: hooks
+      volumes:
+      - configMap:
+          name: kubeflow-pipelines-profile-controller-code-dhhfgkff5f
+        name: hooks
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    application-crd-id: kubeflow-pipelines
+    component: metadata-envoy
+  name: metadata-envoy-deployment
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      application-crd-id: kubeflow-pipelines
+      component: metadata-envoy
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        application-crd-id: kubeflow-pipelines
+        component: metadata-envoy
+    spec:
+      containers:
+      - image: gcr.io/ml-pipeline/metadata-envoy:1.7.0
+        name: container
+        ports:
+        - containerPort: 9090
+          name: md-envoy
+        - containerPort: 9901
+          name: envoy-admin
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    application-crd-id: kubeflow-pipelines
+    component: metadata-grpc-server
+  name: metadata-grpc-deployment
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      application-crd-id: kubeflow-pipelines
+      component: metadata-grpc-server
+  template:
+    metadata:
+      labels:
+        application-crd-id: kubeflow-pipelines
+        component: metadata-grpc-server
+    spec:
+      containers:
+      - args:
+        - --grpc_port=8080
+        - --mysql_config_database=$(MYSQL_DATABASE)
+        - --mysql_config_host=$(MYSQL_HOST)
+        - --mysql_config_port=$(MYSQL_PORT)
+        - --mysql_config_user=$(DBCONFIG_USER)
+        - --mysql_config_password=$(DBCONFIG_PASSWORD)
+        - --enable_database_upgrade=true
+        command:
+        - /bin/metadata_store_server
+        env:
+        - name: DBCONFIG_USER
+          valueFrom:
+            secretKeyRef:
+              key: username
+              name: mysql-secret
+        - name: DBCONFIG_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: mysql-secret
+        - name: MYSQL_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              key: mlmdDb
+              name: pipeline-install-config
+        - name: MYSQL_HOST
+          valueFrom:
+            configMapKeyRef:
+              key: dbHost
+              name: pipeline-install-config
+        - name: MYSQL_PORT
+          valueFrom:
+            configMapKeyRef:
+              key: dbPort
+              name: pipeline-install-config
+        image: gcr.io/tfx-oss-public/ml_metadata_store_server:1.0.0
+        livenessProbe:
+          initialDelaySeconds: 3
+          periodSeconds: 5
+          tcpSocket:
+            port: grpc-api
+          timeoutSeconds: 2
+        name: container
+        ports:
+        - containerPort: 8080
+          name: grpc-api
+        readinessProbe:
+          initialDelaySeconds: 3
+          periodSeconds: 5
+          tcpSocket:
+            port: grpc-api
+          timeoutSeconds: 2
+      serviceAccountName: metadata-grpc-server
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: metadata-writer
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: metadata-writer
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: metadata-writer
+      app.kubernetes.io/component: ml-pipeline
+      app.kubernetes.io/name: kubeflow-pipelines
+      application-crd-id: kubeflow-pipelines
+  template:
+    metadata:
+      labels:
+        app: metadata-writer
+        app.kubernetes.io/component: ml-pipeline
+        app.kubernetes.io/name: kubeflow-pipelines
+        application-crd-id: kubeflow-pipelines
+    spec:
+      containers:
+      - env:
+        - name: NAMESPACE_TO_WATCH
+          value: ""
+        image: gcr.io/ml-pipeline/metadata-writer:1.7.0
+        name: main
+      serviceAccountName: kubeflow-pipelines-metadata-writer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: minio
+    application-crd-id: kubeflow-pipelines
+  name: minio
+  namespace: kubeflow
+spec:
+  selector:
+    matchLabels:
+      app: minio
+      application-crd-id: kubeflow-pipelines
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: minio
+        application-crd-id: kubeflow-pipelines
+    spec:
+      containers:
+      - args:
+        - server
+        - /data
+        env:
+        - name: MINIO_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              key: accesskey
+              name: mlpipeline-minio-artifact
+        - name: MINIO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              key: secretkey
+              name: mlpipeline-minio-artifact
+        image: gcr.io/ml-pipeline/minio:RELEASE.2019-08-14T20-37-41Z-license-compliance
+        name: minio
+        ports:
+        - containerPort: 9000
+        resources:
+          requests:
+            cpu: 20m
+            memory: 100Mi
+        volumeMounts:
+        - mountPath: /data
+          name: data
+          subPath: minio
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: minio-pvc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: ml-pipeline
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: ml-pipeline
+  namespace: kubeflow
+spec:
+  selector:
+    matchLabels:
+      app: ml-pipeline
+      app.kubernetes.io/component: ml-pipeline
+      app.kubernetes.io/name: kubeflow-pipelines
+      application-crd-id: kubeflow-pipelines
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+      labels:
+        app: ml-pipeline
+        app.kubernetes.io/component: ml-pipeline
+        app.kubernetes.io/name: kubeflow-pipelines
+        application-crd-id: kubeflow-pipelines
+    spec:
+      containers:
+      - env:
+        - name: KUBEFLOW_USERID_HEADER
+          value: kubeflow-userid
+        - name: KUBEFLOW_USERID_PREFIX
+          value: ""
+        - name: AUTO_UPDATE_PIPELINE_DEFAULT_VERSION
+          valueFrom:
+            configMapKeyRef:
+              key: autoUpdatePipelineDefaultVersion
+              name: pipeline-install-config
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: OBJECTSTORECONFIG_SECURE
+          value: "false"
+        - name: OBJECTSTORECONFIG_BUCKETNAME
+          valueFrom:
+            configMapKeyRef:
+              key: bucketName
+              name: pipeline-install-config
+        - name: DBCONFIG_USER
+          valueFrom:
+            secretKeyRef:
+              key: username
+              name: mysql-secret
+        - name: DBCONFIG_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: mysql-secret
+        - name: DBCONFIG_DBNAME
+          valueFrom:
+            configMapKeyRef:
+              key: pipelineDb
+              name: pipeline-install-config
+        - name: DBCONFIG_HOST
+          valueFrom:
+            configMapKeyRef:
+              key: dbHost
+              name: pipeline-install-config
+        - name: DBCONFIG_PORT
+          valueFrom:
+            configMapKeyRef:
+              key: dbPort
+              name: pipeline-install-config
+        - name: DBCONFIG_CONMAXLIFETIMESEC
+          valueFrom:
+            configMapKeyRef:
+              key: ConMaxLifeTimeSec
+              name: pipeline-install-config
+        - name: OBJECTSTORECONFIG_ACCESSKEY
+          valueFrom:
+            secretKeyRef:
+              key: accesskey
+              name: mlpipeline-minio-artifact
+        - name: OBJECTSTORECONFIG_SECRETACCESSKEY
+          valueFrom:
+            secretKeyRef:
+              key: secretkey
+              name: mlpipeline-minio-artifact
+        envFrom:
+        - configMapRef:
+            name: pipeline-api-server-config-f4t72426kt
+        image: gcr.io/ml-pipeline/api-server:1.7.0
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          exec:
+            command:
+            - wget
+            - -q
+            - -S
+            - -O
+            - '-'
+            - http://localhost:8888/apis/v1beta1/healthz
+          initialDelaySeconds: 3
+          periodSeconds: 5
+          timeoutSeconds: 2
+        name: ml-pipeline-api-server
+        ports:
+        - containerPort: 8888
+          name: http
+        - containerPort: 8887
+          name: grpc
+        readinessProbe:
+          exec:
+            command:
+            - wget
+            - -q
+            - -S
+            - -O
+            - '-'
+            - http://localhost:8888/apis/v1beta1/healthz
+          initialDelaySeconds: 3
+          periodSeconds: 5
+          timeoutSeconds: 2
+        resources:
+          requests:
+            cpu: 250m
+            memory: 500Mi
+      serviceAccountName: ml-pipeline
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: ml-pipeline-persistenceagent
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: ml-pipeline-persistenceagent
+  namespace: kubeflow
+spec:
+  selector:
+    matchLabels:
+      app: ml-pipeline-persistenceagent
+      app.kubernetes.io/component: ml-pipeline
+      app.kubernetes.io/name: kubeflow-pipelines
+      application-crd-id: kubeflow-pipelines
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+      labels:
+        app: ml-pipeline-persistenceagent
+        app.kubernetes.io/component: ml-pipeline
+        app.kubernetes.io/name: kubeflow-pipelines
+        application-crd-id: kubeflow-pipelines
+    spec:
+      containers:
+      - env:
+        - name: NAMESPACE
+          value: ""
+        - name: TTL_SECONDS_AFTER_WORKFLOW_FINISH
+          value: "86400"
+        - name: NUM_WORKERS
+          value: "2"
+        image: gcr.io/ml-pipeline/persistenceagent:1.7.0
+        imagePullPolicy: IfNotPresent
+        name: ml-pipeline-persistenceagent
+        resources:
+          requests:
+            cpu: 120m
+            memory: 500Mi
+      serviceAccountName: ml-pipeline-persistenceagent
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: ml-pipeline-scheduledworkflow
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: ml-pipeline-scheduledworkflow
+  namespace: kubeflow
+spec:
+  selector:
+    matchLabels:
+      app: ml-pipeline-scheduledworkflow
+      app.kubernetes.io/component: ml-pipeline
+      app.kubernetes.io/name: kubeflow-pipelines
+      application-crd-id: kubeflow-pipelines
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+      labels:
+        app: ml-pipeline-scheduledworkflow
+        app.kubernetes.io/component: ml-pipeline
+        app.kubernetes.io/name: kubeflow-pipelines
+        application-crd-id: kubeflow-pipelines
+    spec:
+      containers:
+      - env:
+        - name: NAMESPACE
+          value: ""
+        - name: CRON_SCHEDULE_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              key: cronScheduleTimezone
+              name: pipeline-install-config
+        image: gcr.io/ml-pipeline/scheduledworkflow:1.7.0
+        imagePullPolicy: IfNotPresent
+        name: ml-pipeline-scheduledworkflow
+      serviceAccountName: ml-pipeline-scheduledworkflow
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: ml-pipeline-ui
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: ml-pipeline-ui
+  namespace: kubeflow
+spec:
+  selector:
+    matchLabels:
+      app: ml-pipeline-ui
+      app.kubernetes.io/component: ml-pipeline
+      app.kubernetes.io/name: kubeflow-pipelines
+      application-crd-id: kubeflow-pipelines
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+      labels:
+        app: ml-pipeline-ui
+        app.kubernetes.io/component: ml-pipeline
+        app.kubernetes.io/name: kubeflow-pipelines
+        application-crd-id: kubeflow-pipelines
+    spec:
+      containers:
+      - env:
+        - name: VIEWER_TENSORBOARD_POD_TEMPLATE_SPEC_PATH
+          value: /etc/config/viewer-pod-template.json
+        - name: DEPLOYMENT
+          value: KUBEFLOW
+        - name: ARTIFACTS_SERVICE_PROXY_NAME
+          value: ml-pipeline-ui-artifact
+        - name: ARTIFACTS_SERVICE_PROXY_PORT
+          value: "80"
+        - name: ARTIFACTS_SERVICE_PROXY_ENABLED
+          value: "true"
+        - name: ENABLE_AUTHZ
+          value: "true"
+        - name: KUBEFLOW_USERID_HEADER
+          value: kubeflow-userid
+        - name: KUBEFLOW_USERID_PREFIX
+          value: ""
+        - name: MINIO_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: MINIO_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              key: accesskey
+              name: mlpipeline-minio-artifact
+        - name: MINIO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              key: secretkey
+              name: mlpipeline-minio-artifact
+        - name: ALLOW_CUSTOM_VISUALIZATIONS
+          value: "true"
+        image: gcr.io/ml-pipeline/frontend:1.7.0
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          exec:
+            command:
+            - wget
+            - -q
+            - -S
+            - -O
+            - '-'
+            - http://localhost:3000/apis/v1beta1/healthz
+          initialDelaySeconds: 3
+          periodSeconds: 5
+          timeoutSeconds: 2
+        name: ml-pipeline-ui
+        ports:
+        - containerPort: 3000
+        readinessProbe:
+          exec:
+            command:
+            - wget
+            - -q
+            - -S
+            - -O
+            - '-'
+            - http://localhost:3000/apis/v1beta1/healthz
+          initialDelaySeconds: 3
+          periodSeconds: 5
+          timeoutSeconds: 2
+        resources:
+          requests:
+            cpu: 10m
+            memory: 70Mi
+        volumeMounts:
+        - mountPath: /etc/config
+          name: config-volume
+          readOnly: true
+      serviceAccountName: ml-pipeline-ui
+      volumes:
+      - configMap:
+          name: ml-pipeline-ui-configmap
+        name: config-volume
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: ml-pipeline-viewer-crd
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: ml-pipeline-viewer-crd
+  namespace: kubeflow
+spec:
+  selector:
+    matchLabels:
+      app: ml-pipeline-viewer-crd
+      app.kubernetes.io/component: ml-pipeline
+      app.kubernetes.io/name: kubeflow-pipelines
+      application-crd-id: kubeflow-pipelines
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+      labels:
+        app: ml-pipeline-viewer-crd
+        app.kubernetes.io/component: ml-pipeline
+        app.kubernetes.io/name: kubeflow-pipelines
+        application-crd-id: kubeflow-pipelines
+    spec:
+      containers:
+      - env:
+        - name: NAMESPACE
+          value: ""
+          valueFrom: null
+        - name: MAX_NUM_VIEWERS
+          value: "50"
+        - name: MINIO_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        image: gcr.io/ml-pipeline/viewer-crd-controller:1.7.0
+        imagePullPolicy: Always
+        name: ml-pipeline-viewer-crd
+      serviceAccountName: ml-pipeline-viewer-crd-service-account
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: ml-pipeline-visualizationserver
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: ml-pipeline-visualizationserver
+  namespace: kubeflow
+spec:
+  selector:
+    matchLabels:
+      app: ml-pipeline-visualizationserver
+      app.kubernetes.io/component: ml-pipeline
+      app.kubernetes.io/name: kubeflow-pipelines
+      application-crd-id: kubeflow-pipelines
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+      labels:
+        app: ml-pipeline-visualizationserver
+        app.kubernetes.io/component: ml-pipeline
+        app.kubernetes.io/name: kubeflow-pipelines
+        application-crd-id: kubeflow-pipelines
+    spec:
+      containers:
+      - image: gcr.io/ml-pipeline/visualization-server:1.7.0
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          exec:
+            command:
+            - wget
+            - -q
+            - -S
+            - -O
+            - '-'
+            - http://localhost:8888/
+          initialDelaySeconds: 3
+          periodSeconds: 5
+          timeoutSeconds: 2
+        name: ml-pipeline-visualizationserver
+        ports:
+        - containerPort: 8888
+          name: http
+        readinessProbe:
+          exec:
+            command:
+            - wget
+            - -q
+            - -S
+            - -O
+            - '-'
+            - http://localhost:8888/
+          initialDelaySeconds: 3
+          periodSeconds: 5
+          timeoutSeconds: 2
+        resources:
+          requests:
+            cpu: 30m
+            memory: 500Mi
+      serviceAccountName: ml-pipeline-visualizationserver
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: mpi-operator
+    app.kubernetes.io/component: mpijob
+    app.kubernetes.io/name: mpi-operator
+    kustomize.component: mpi-operator
+  name: mpi-operator
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mpi-operator
+      app.kubernetes.io/component: mpijob
+      app.kubernetes.io/name: mpi-operator
+      kustomize.component: mpi-operator
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: mpi-operator
+        app.kubernetes.io/component: mpijob
+        app.kubernetes.io/name: mpi-operator
+        kustomize.component: mpi-operator
+    spec:
+      containers:
+      - args:
+        - -alsologtostderr
+        - --lock-namespace
+        - kubeflow
+        - --kubectl-delivery-image
+        - mpioperator/kubectl-delivery:latest
+        command:
+        - /opt/mpi-operator.v1
+        image: mpioperator/mpi-operator:0.3.0
+        imagePullPolicy: Always
+        name: mpi-operator
+      serviceAccountName: mpi-operator
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: mysql
+    application-crd-id: kubeflow-pipelines
+  name: mysql
+  namespace: kubeflow
+spec:
+  selector:
+    matchLabels:
+      app: mysql
+      application-crd-id: kubeflow-pipelines
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: mysql
+        application-crd-id: kubeflow-pipelines
+    spec:
+      containers:
+      - args:
+        - --ignore-db-dir=lost+found
+        - --datadir
+        - /var/lib/mysql
+        env:
+        - name: MYSQL_ALLOW_EMPTY_PASSWORD
+          value: "true"
+        image: gcr.io/ml-pipeline/mysql:5.7
+        name: mysql
+        ports:
+        - containerPort: 3306
+          name: mysql
+        resources:
+          requests:
+            cpu: 100m
+            memory: 800Mi
+        volumeMounts:
+        - mountPath: /var/lib/mysql
+          name: mysql-persistent-storage
+      serviceAccountName: mysql
+      volumes:
+      - name: mysql-persistent-storage
+        persistentVolumeClaim:
+          claimName: mysql-pv-claim
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: notebook-controller
+    kustomize.component: notebook-controller
+  name: notebook-controller-deployment
+  namespace: kubeflow
+spec:
+  selector:
+    matchLabels:
+      app: notebook-controller
+      kustomize.component: notebook-controller
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: notebook-controller
+        kustomize.component: notebook-controller
+    spec:
+      containers:
+      - command:
+        - /manager
+        env:
+        - name: USE_ISTIO
+          valueFrom:
+            configMapKeyRef:
+              key: USE_ISTIO
+              name: notebook-controller-config-kkt88f2bhb
+        - name: ISTIO_GATEWAY
+          valueFrom:
+            configMapKeyRef:
+              key: ISTIO_GATEWAY
+              name: notebook-controller-config-kkt88f2bhb
+        image: public.ecr.aws/j1r0q0g6/notebooks/notebook-controller:v1.4
+        imagePullPolicy: Always
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        name: manager
+      serviceAccountName: notebook-controller-service-account
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    kustomize.component: profiles
+  name: profiles-deployment
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      kustomize.component: profiles
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        kustomize.component: profiles
+    spec:
+      containers:
+      - command:
+        - /access-management
+        - -cluster-admin
+        - $(ADMIN)
+        - -userid-header
+        - $(USERID_HEADER)
+        - -userid-prefix
+        - $(USERID_PREFIX)
+        envFrom:
+        - configMapRef:
+            name: profiles-config-2g29dd2mbd
+        image: public.ecr.aws/j1r0q0g6/notebooks/access-management:v1.4
+        imagePullPolicy: Always
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 8081
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        name: kfam
+        ports:
+        - containerPort: 8081
+          name: kfam-http
+          protocol: TCP
+      - command:
+        - /manager
+        - -userid-header
+        - $(USERID_HEADER)
+        - -userid-prefix
+        - $(USERID_PREFIX)
+        - -workload-identity
+        - $(WORKLOAD_IDENTITY)
+        envFrom:
+        - configMapRef:
+            name: profiles-config-2g29dd2mbd
+        image: public.ecr.aws/j1r0q0g6/notebooks/profile-controller:v1.4
+        imagePullPolicy: Always
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        name: manager
+        ports:
+        - containerPort: 8080
+          name: manager-http
+          protocol: TCP
+        volumeMounts:
+        - mountPath: /etc/profile-controller
+          name: namespace-labels
+          readOnly: true
+      serviceAccountName: profiles-controller-service-account
+      volumes:
+      - configMap:
+          name: namespace-labels-data-m76mmk6ckt
+        name: namespace-labels
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: tensorboard-controller
+    control-plane: controller-manager
+    kustomize.component: tensorboard-controller
+  name: tensorboard-controller-controller-manager
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tensorboard-controller
+      control-plane: controller-manager
+      kustomize.component: tensorboard-controller
+  template:
+    metadata:
+      labels:
+        app: tensorboard-controller
+        control-plane: controller-manager
+        kustomize.component: tensorboard-controller
+    spec:
+      containers:
+      - args:
+        - --secure-listen-address=0.0.0.0:8443
+        - --upstream=http://127.0.0.1:8080/
+        - --logtostderr=true
+        - --v=10
+        image: gcr.io/kubebuilder/kube-rbac-proxy:v0.4.0
+        name: kube-rbac-proxy
+        ports:
+        - containerPort: 8443
+          name: https
+      - args:
+        - --metrics-addr=127.0.0.1:8080
+        - --enable-leader-election
+        command:
+        - /manager
+        envFrom:
+        - configMapRef:
+            name: tensorboard-controller-config-mcd64bhg84
+        image: public.ecr.aws/j1r0q0g6/notebooks/tensorboard-controller:v1.4
+        name: manager
+        resources:
+          limits:
+            cpu: 100m
+            memory: 30Mi
+          requests:
+            cpu: 100m
+            memory: 20Mi
+      serviceAccountName: tensorboard-controller
+      terminationGracePeriodSeconds: 10
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: tensorboards-web-app
+    kustomize.component: tensorboards-web-app
+  name: tensorboards-web-app-deployment
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tensorboards-web-app
+      kustomize.component: tensorboards-web-app
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: tensorboards-web-app
+        kustomize.component: tensorboards-web-app
+    spec:
+      containers:
+      - env:
+        - name: APP_PREFIX
+          value: /tensorboards
+        - name: USERID_HEADER
+          value: kubeflow-userid
+        - name: USERID_PREFIX
+          value: ""
+        image: public.ecr.aws/j1r0q0g6/notebooks/tensorboards-web-app:v1.4
+        name: tensorboards-web-app
+        ports:
+        - containerPort: 5000
+      serviceAccountName: tensorboards-web-app-service-account
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    control-plane: kubeflow-training-operator
+  name: training-operator
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: kubeflow-training-operator
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        control-plane: kubeflow-training-operator
+    spec:
+      containers:
+      - command:
+        - /manager
+        env:
+        - name: MY_POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: MY_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        image: public.ecr.aws/j1r0q0g6/training/training-operator:760ac1171dd30039a7363ffa03c77454bd714da5
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: training-operator
+        ports:
+        - containerPort: 8080
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 100m
+            memory: 30Mi
+          requests:
+            cpu: 100m
+            memory: 20Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+      serviceAccountName: training-operator
+      terminationGracePeriodSeconds: 10
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: volumes-web-app
+    kustomize.component: volumes-web-app
+  name: volumes-web-app-deployment
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: volumes-web-app
+      kustomize.component: volumes-web-app
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: volumes-web-app
+        kustomize.component: volumes-web-app
+    spec:
+      containers:
+      - env:
+        - name: APP_PREFIX
+          value: /volumes
+        - name: USERID_HEADER
+          value: kubeflow-userid
+        - name: USERID_PREFIX
+          value: ""
+        image: public.ecr.aws/j1r0q0g6/notebooks/volumes-web-app:v1.4
+        name: volumes-web-app
+        ports:
+        - containerPort: 5000
+      serviceAccountName: volumes-web-app-service-account
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    application-crd-id: kubeflow-pipelines
+  name: workflow-controller
+  namespace: kubeflow
+spec:
+  selector:
+    matchLabels:
+      app: workflow-controller
+      application-crd-id: kubeflow-pipelines
+  template:
+    metadata:
+      labels:
+        app: workflow-controller
+        application-crd-id: kubeflow-pipelines
+    spec:
+      containers:
+      - args:
+        - --configmap
+        - workflow-controller-configmap
+        - --executor-image
+        - gcr.io/ml-pipeline/argoexec:v3.1.6-patch-license-compliance
+        command:
+        - workflow-controller
+        env:
+        - name: LEADER_ELECTION_IDENTITY
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        image: gcr.io/ml-pipeline/workflow-controller:v3.1.6-patch-license-compliance
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: 6060
+          initialDelaySeconds: 90
+          periodSeconds: 60
+          timeoutSeconds: 30
+        name: workflow-controller
+        ports:
+        - containerPort: 9090
+          name: metrics
+        - containerPort: 6060
+        resources:
+          requests:
+            cpu: 100m
+            memory: 500Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+      nodeSelector:
+        kubernetes.io/os: linux
+      securityContext:
+        runAsNonRoot: true
+      serviceAccountName: argo
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: authservice
+  namespace: istio-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: authservice
+  serviceName: authservice
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: authservice
+    spec:
+      containers:
+      - envFrom:
+        - secretRef:
+            name: oidc-authservice-client
+        - configMapRef:
+            name: oidc-authservice-parameters
+        image: gcr.io/arrikto/kubeflow/oidc-authservice:28c59ef
+        imagePullPolicy: Always
+        name: authservice
+        ports:
+        - containerPort: 8080
+          name: http-api
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8081
+        volumeMounts:
+        - mountPath: /var/lib/authservice
+          name: data
+      securityContext:
+        fsGroup: 111
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: authservice-pvc
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app: kfserving
+    app.kubernetes.io/name: kfserving
+    control-plane: kfserving-controller-manager
+    controller-tools.k8s.io: "1.0"
+  name: kfserving-controller-manager
+  namespace: kubeflow
+spec:
+  selector:
+    matchLabels:
+      app: kfserving
+      app.kubernetes.io/name: kfserving
+      control-plane: kfserving-controller-manager
+      controller-tools.k8s.io: "1.0"
+  serviceName: controller-manager-service
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: kfserving
+        app.kubernetes.io/name: kfserving
+        control-plane: kfserving-controller-manager
+        controller-tools.k8s.io: "1.0"
+    spec:
+      containers:
+      - args:
+        - --secure-listen-address=0.0.0.0:8443
+        - --upstream=http://127.0.0.1:8080/
+        - --logtostderr=true
+        - --v=10
+        image: gcr.io/kubebuilder/kube-rbac-proxy:v0.4.0
+        name: kube-rbac-proxy
+        ports:
+        - containerPort: 8443
+          name: https
+      - args:
+        - --metrics-addr=127.0.0.1:8080
+        command:
+        - /manager
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: SECRET_NAME
+          value: kfserving-webhook-server-cert
+        image: kfserving/kfserving-controller:v0.6.1
+        imagePullPolicy: Always
+        name: manager
+        ports:
+        - containerPort: 9443
+          name: webhook-server
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 100m
+            memory: 300Mi
+          requests:
+            cpu: 100m
+            memory: 200Mi
+        volumeMounts:
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: cert
+          readOnly: true
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - name: cert
+        secret:
+          defaultMode: 420
+          secretName: kfserving-webhook-server-cert
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app: metacontroller
+    application-crd-id: kubeflow-pipelines
+    kustomize.component: metacontroller
+  name: metacontroller
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: metacontroller
+      application-crd-id: kubeflow-pipelines
+      kustomize.component: metacontroller
+  serviceName: ""
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: metacontroller
+        application-crd-id: kubeflow-pipelines
+        kustomize.component: metacontroller
+    spec:
+      containers:
+      - command:
+        - /usr/bin/metacontroller
+        - --logtostderr
+        - -v=4
+        - --discovery-interval=20s
+        image: metacontroller/metacontroller:v0.3.0
+        imagePullPolicy: Always
+        name: metacontroller
+        ports:
+        - containerPort: 2345
+        resources:
+          limits:
+            cpu: "4"
+            memory: 4Gi
+          requests:
+            cpu: 500m
+            memory: 1Gi
+        securityContext:
+          allowPrivilegeEscalation: true
+          privileged: true
+      serviceAccountName: meta-controller-service
+  volumeClaimTemplates: []
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  labels:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    eventing.knative.dev/release: v0.22.1
+    kustomize.component: knative
+  name: eventing-webhook
+  namespace: knative-eventing
+spec:
+  minAvailable: 80%
+  selector:
+    matchLabels:
+      app: eventing-webhook
+      app.kubernetes.io/component: knative-eventing
+      app.kubernetes.io/name: knative-eventing
+      kustomize.component: knative
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  labels:
+    serving.knative.dev/release: v0.22.1
+  name: activator-pdb
+  namespace: knative-serving
+spec:
+  minAvailable: 80%
+  selector:
+    matchLabels:
+      app: activator
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  labels:
+    serving.knative.dev/release: v0.22.1
+  name: webhook-pdb
+  namespace: knative-serving
+spec:
+  minAvailable: 80%
+  selector:
+    matchLabels:
+      app: webhook
+---
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  labels:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    eventing.knative.dev/release: v0.22.1
+    kustomize.component: knative
+  name: broker-filter-hpa
+  namespace: knative-eventing
+spec:
+  maxReplicas: 10
+  metrics:
+  - resource:
+      name: cpu
+      target:
+        averageUtilization: 70
+        type: Utilization
+    type: Resource
+  minReplicas: 1
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: mt-broker-filter
+---
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  labels:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    eventing.knative.dev/release: v0.22.1
+    kustomize.component: knative
+  name: broker-ingress-hpa
+  namespace: knative-eventing
+spec:
+  maxReplicas: 10
+  metrics:
+  - resource:
+      name: cpu
+      target:
+        averageUtilization: 70
+        type: Utilization
+    type: Resource
+  minReplicas: 1
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: mt-broker-ingress
+---
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  labels:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    eventing.knative.dev/release: v0.22.1
+    kustomize.component: knative
+  name: eventing-webhook
+  namespace: knative-eventing
+spec:
+  maxReplicas: 5
+  metrics:
+  - resource:
+      name: cpu
+      target:
+        averageUtilization: 100
+        type: Utilization
+    type: Resource
+  minReplicas: 1
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: eventing-webhook
+---
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  labels:
+    serving.knative.dev/release: v0.22.1
+  name: activator
+  namespace: knative-serving
+spec:
+  maxReplicas: 20
+  metrics:
+  - resource:
+      name: cpu
+      target:
+        averageUtilization: 100
+        type: Utilization
+    type: Resource
+  minReplicas: 1
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: activator
+---
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  labels:
+    serving.knative.dev/release: v0.22.1
+  name: webhook
+  namespace: knative-serving
+spec:
+  maxReplicas: 5
+  metrics:
+  - resource:
+      name: cpu
+      target:
+        averageUtilization: 100
+        type: Utilization
+    type: Resource
+  minReplicas: 1
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: webhook

@@ -1,0 +1,6 @@
+kube/
+.envrc
+
+**terragrunt-cache**
+**terraform.lock.hcl
+**.terraform

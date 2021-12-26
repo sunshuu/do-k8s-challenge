@@ -1,0 +1,931 @@
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: dex
+  namespace: auth
+spec:
+  ports:
+  - name: dex
+    nodePort: 32000
+    port: 5556
+    protocol: TCP
+    targetPort: 5556
+  selector:
+    app: dex
+  type: NodePort
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: cert-manager
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/instance: cert-manager
+    app.kubernetes.io/name: cert-manager
+  name: cert-manager
+  namespace: cert-manager
+spec:
+  ports:
+  - port: 9402
+    protocol: TCP
+    targetPort: 9402
+  selector:
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/instance: cert-manager
+    app.kubernetes.io/name: cert-manager
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: webhook
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/instance: cert-manager
+    app.kubernetes.io/name: webhook
+  name: cert-manager-webhook
+  namespace: cert-manager
+spec:
+  ports:
+  - name: https
+    port: 443
+    targetPort: 10250
+  selector:
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/instance: cert-manager
+    app.kubernetes.io/name: webhook
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: authservice
+  namespace: istio-system
+spec:
+  ports:
+  - name: http-authservice
+    port: 8080
+    targetPort: http-api
+  publishNotReadyAddresses: true
+  selector:
+    app: authservice
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations: null
+  labels:
+    app: cluster-local-gateway
+    install.operator.istio.io/owning-resource: unknown
+    istio: cluster-local-gateway
+    istio.io/rev: default
+    operator.istio.io/component: IngressGateways
+    release: istio
+  name: cluster-local-gateway
+  namespace: istio-system
+spec:
+  ports:
+  - name: status-port
+    port: 15020
+    protocol: TCP
+    targetPort: 15020
+  - name: http2
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: cluster-local-gateway
+    istio: cluster-local-gateway
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations: null
+  labels:
+    app: istio-ingressgateway
+    install.operator.istio.io/owning-resource: unknown
+    istio: ingressgateway
+    istio.io/rev: default
+    operator.istio.io/component: IngressGateways
+    release: istio
+  name: istio-ingressgateway
+  namespace: istio-system
+spec:
+  ports:
+  - name: status-port
+    port: 15021
+    protocol: TCP
+    targetPort: 15021
+  - name: http2
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  - name: https
+    port: 443
+    protocol: TCP
+    targetPort: 8443
+  - name: tcp
+    port: 31400
+    protocol: TCP
+    targetPort: 31400
+  - name: tls
+    port: 15443
+    protocol: TCP
+    targetPort: 15443
+  selector:
+    app: istio-ingressgateway
+    istio: ingressgateway
+  type: LoadBalancer
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: istiod
+    install.operator.istio.io/owning-resource: unknown
+    istio: pilot
+    istio.io/rev: default
+    operator.istio.io/component: Pilot
+    release: istio
+  name: istiod
+  namespace: istio-system
+spec:
+  ports:
+  - name: grpc-xds
+    port: 15010
+    protocol: TCP
+  - name: https-dns
+    port: 15012
+    protocol: TCP
+  - name: https-webhook
+    port: 443
+    protocol: TCP
+    targetPort: 15017
+  - name: http-monitoring
+    port: 15014
+    protocol: TCP
+  selector:
+    app: istiod
+    istio: pilot
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    networking.knative.dev/ingress-provider: istio
+    serving.knative.dev/release: v0.22.1
+  name: knative-local-gateway
+  namespace: istio-system
+spec:
+  ports:
+  - name: http2
+    port: 80
+    targetPort: 8081
+  selector:
+    app: cluster-local-gateway
+    istio: cluster-local-gateway
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    eventing.knative.dev/brokerRole: filter
+    eventing.knative.dev/release: v0.22.1
+    kustomize.component: knative
+  name: broker-filter
+  namespace: knative-eventing
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  - name: http-metrics
+    port: 9092
+    protocol: TCP
+    targetPort: 9092
+  selector:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    eventing.knative.dev/brokerRole: filter
+    kustomize.component: knative
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    eventing.knative.dev/brokerRole: ingress
+    eventing.knative.dev/release: v0.22.1
+    kustomize.component: knative
+  name: broker-ingress
+  namespace: knative-eventing
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  - name: http-metrics
+    port: 9092
+    protocol: TCP
+    targetPort: 9092
+  selector:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    eventing.knative.dev/brokerRole: ingress
+    kustomize.component: knative
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    eventing.knative.dev/release: v0.22.1
+    kustomize.component: knative
+    role: eventing-webhook
+  name: eventing-webhook
+  namespace: knative-eventing
+spec:
+  ports:
+  - name: https-webhook
+    port: 443
+    targetPort: 8443
+  selector:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    kustomize.component: knative
+    role: eventing-webhook
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    eventing.knative.dev/release: v0.22.1
+    kustomize.component: knative
+    messaging.knative.dev/channel: in-memory-channel
+    messaging.knative.dev/role: dispatcher
+  name: imc-dispatcher
+  namespace: knative-eventing
+spec:
+  ports:
+  - name: http-dispatcher
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    kustomize.component: knative
+    messaging.knative.dev/channel: in-memory-channel
+    messaging.knative.dev/role: dispatcher
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: activator
+    serving.knative.dev/release: v0.22.1
+  name: activator-service
+  namespace: knative-serving
+spec:
+  ports:
+  - name: http-metrics
+    port: 9090
+    targetPort: 9090
+  - name: http-profiling
+    port: 8008
+    targetPort: 8008
+  - name: http
+    port: 80
+    targetPort: 8012
+  - name: http2
+    port: 81
+    targetPort: 8013
+  selector:
+    app: activator
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: autoscaler
+    serving.knative.dev/release: v0.22.1
+  name: autoscaler
+  namespace: knative-serving
+spec:
+  ports:
+  - name: http-metrics
+    port: 9090
+    targetPort: 9090
+  - name: http-profiling
+    port: 8008
+    targetPort: 8008
+  - name: http
+    port: 8080
+    targetPort: 8080
+  selector:
+    app: autoscaler
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: controller
+    serving.knative.dev/release: v0.22.1
+  name: controller
+  namespace: knative-serving
+spec:
+  ports:
+  - name: http-metrics
+    port: 9090
+    targetPort: 9090
+  - name: http-profiling
+    port: 8008
+    targetPort: 8008
+  selector:
+    app: controller
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    networking.knative.dev/ingress-provider: istio
+    role: istio-webhook
+    serving.knative.dev/release: v0.22.1
+  name: istio-webhook
+  namespace: knative-serving
+spec:
+  ports:
+  - name: http-metrics
+    port: 9090
+    targetPort: 9090
+  - name: http-profiling
+    port: 8008
+    targetPort: 8008
+  - name: https-webhook
+    port: 443
+    targetPort: 8443
+  selector:
+    app: istio-webhook
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    role: webhook
+    serving.knative.dev/release: v0.22.1
+  name: webhook
+  namespace: knative-serving
+spec:
+  ports:
+  - name: http-metrics
+    port: 9090
+    targetPort: 9090
+  - name: http-profiling
+    port: 8008
+    targetPort: 8008
+  - name: https-webhook
+    port: 443
+    targetPort: 8443
+  selector:
+    role: webhook
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: poddefaults
+    app.kubernetes.io/component: poddefaults
+    app.kubernetes.io/name: poddefaults
+    kustomize.component: poddefaults
+  name: admission-webhook-service
+  namespace: kubeflow
+spec:
+  ports:
+  - name: https-webhook
+    port: 443
+    targetPort: https-webhook
+  selector:
+    app: poddefaults
+    app.kubernetes.io/component: poddefaults
+    app.kubernetes.io/name: poddefaults
+    kustomize.component: poddefaults
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: cache-server
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: cache-server
+  namespace: kubeflow
+spec:
+  ports:
+  - port: 443
+    targetPort: webhook-api
+  selector:
+    app: cache-server
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: centraldashboard
+    app.kubernetes.io/component: centraldashboard
+    app.kubernetes.io/name: centraldashboard
+    kustomize.component: centraldashboard
+  name: centraldashboard
+  namespace: kubeflow
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 8082
+  selector:
+    app: centraldashboard
+    app.kubernetes.io/component: centraldashboard
+    app.kubernetes.io/name: centraldashboard
+    kustomize.component: centraldashboard
+  sessionAffinity: None
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: jupyter-web-app
+    kustomize.component: jupyter-web-app
+    run: jupyter-web-app
+  name: jupyter-web-app-service
+  namespace: kubeflow
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: jupyter-web-app
+    kustomize.component: jupyter-web-app
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    prometheus.io/port: "8080"
+    prometheus.io/scheme: http
+    prometheus.io/scrape: "true"
+  labels:
+    katib.kubeflow.org/component: controller
+  name: katib-controller
+  namespace: kubeflow
+spec:
+  ports:
+  - name: webhook
+    port: 443
+    protocol: TCP
+    targetPort: 8443
+  - name: metrics
+    port: 8080
+    targetPort: 8080
+  selector:
+    katib.kubeflow.org/component: controller
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    katib.kubeflow.org/component: db-manager
+  name: katib-db-manager
+  namespace: kubeflow
+spec:
+  ports:
+  - name: api
+    port: 6789
+    protocol: TCP
+  selector:
+    katib.kubeflow.org/component: db-manager
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    katib.kubeflow.org/component: mysql
+  name: katib-mysql
+  namespace: kubeflow
+spec:
+  ports:
+  - name: dbapi
+    port: 3306
+    protocol: TCP
+  selector:
+    katib.kubeflow.org/component: mysql
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    katib.kubeflow.org/component: ui
+  name: katib-ui
+  namespace: kubeflow
+spec:
+  ports:
+  - name: ui
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    katib.kubeflow.org/component: ui
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    prometheus.io/port: "8443"
+    prometheus.io/scheme: https
+    prometheus.io/scrape: "true"
+  labels:
+    app: kfserving
+    app.kubernetes.io/name: kfserving
+    control-plane: kfserving-controller-manager
+    controller-tools.k8s.io: "1.0"
+  name: kfserving-controller-manager-metrics-service
+  namespace: kubeflow
+spec:
+  ports:
+  - name: https
+    port: 8443
+    targetPort: https
+  selector:
+    app: kfserving
+    app.kubernetes.io/name: kfserving
+    control-plane: kfserving-controller-manager
+    controller-tools.k8s.io: "1.0"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: kfserving
+    app.kubernetes.io/name: kfserving
+    control-plane: kfserving-controller-manager
+    controller-tools.k8s.io: "1.0"
+  name: kfserving-controller-manager-service
+  namespace: kubeflow
+spec:
+  ports:
+  - port: 443
+  selector:
+    app: kfserving
+    app.kubernetes.io/name: kfserving
+    control-plane: kfserving-controller-manager
+    controller-tools.k8s.io: "1.0"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: kfserving
+    app.kubernetes.io/component: kfserving-models-web-app
+    app.kubernetes.io/name: kfserving
+    kustomize.component: kfserving-models-web-app
+  name: kfserving-models-web-app
+  namespace: kubeflow
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: kfserving
+    app.kubernetes.io/component: kfserving-models-web-app
+    app.kubernetes.io/name: kfserving
+    kustomize.component: kfserving-models-web-app
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: kfserving
+    app.kubernetes.io/name: kfserving
+  name: kfserving-webhook-server-service
+  namespace: kubeflow
+spec:
+  ports:
+  - port: 443
+    targetPort: webhook-server
+  selector:
+    app: kfserving
+    app.kubernetes.io/name: kfserving
+    control-plane: kfserving-controller-manager
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: kubeflow-pipelines-profile-controller
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: kubeflow-pipelines-profile-controller
+  namespace: kubeflow
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: kubeflow-pipelines-profile-controller
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: metadata-envoy
+    application-crd-id: kubeflow-pipelines
+  name: metadata-envoy-service
+  namespace: kubeflow
+spec:
+  ports:
+  - name: md-envoy
+    port: 9090
+    protocol: TCP
+  selector:
+    application-crd-id: kubeflow-pipelines
+    component: metadata-envoy
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: metadata
+    application-crd-id: kubeflow-pipelines
+  name: metadata-grpc-service
+  namespace: kubeflow
+spec:
+  ports:
+  - name: grpc-api
+    port: 8080
+    protocol: TCP
+  selector:
+    application-crd-id: kubeflow-pipelines
+    component: metadata-grpc-server
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    application-crd-id: kubeflow-pipelines
+  name: minio-service
+  namespace: kubeflow
+spec:
+  ports:
+  - name: http
+    port: 9000
+    protocol: TCP
+    targetPort: 9000
+  selector:
+    app: minio
+    application-crd-id: kubeflow-pipelines
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: ml-pipeline
+  namespace: kubeflow
+spec:
+  ports:
+  - name: http
+    port: 8888
+    protocol: TCP
+    targetPort: 8888
+  - name: grpc
+    port: 8887
+    protocol: TCP
+    targetPort: 8887
+  selector:
+    app: ml-pipeline
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: ml-pipeline-ui
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: ml-pipeline-ui
+  namespace: kubeflow
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 3000
+  selector:
+    app: ml-pipeline-ui
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: ml-pipeline-visualizationserver
+  namespace: kubeflow
+spec:
+  ports:
+  - name: http
+    port: 8888
+    protocol: TCP
+    targetPort: 8888
+  selector:
+    app: ml-pipeline-visualizationserver
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    application-crd-id: kubeflow-pipelines
+  name: mysql
+  namespace: kubeflow
+spec:
+  ports:
+  - port: 3306
+    protocol: TCP
+    targetPort: 3306
+  selector:
+    app: mysql
+    application-crd-id: kubeflow-pipelines
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: notebook-controller
+    kustomize.component: notebook-controller
+  name: notebook-controller-service
+  namespace: kubeflow
+spec:
+  ports:
+  - port: 443
+  selector:
+    app: notebook-controller
+    kustomize.component: notebook-controller
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    kustomize.component: profiles
+  name: profiles-kfam
+  namespace: kubeflow
+spec:
+  ports:
+  - port: 8081
+  selector:
+    kustomize.component: profiles
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    prometheus.io/port: "8443"
+    prometheus.io/scheme: https
+    prometheus.io/scrape: "true"
+  labels:
+    app: tensorboard-controller
+    control-plane: controller-manager
+    kustomize.component: tensorboard-controller
+  name: tensorboard-controller-controller-manager-metrics-service
+  namespace: kubeflow
+spec:
+  ports:
+  - name: https
+    port: 8443
+    targetPort: https
+  selector:
+    app: tensorboard-controller
+    control-plane: controller-manager
+    kustomize.component: tensorboard-controller
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: tensorboards-web-app
+    kustomize.component: tensorboards-web-app
+    run: tensorboards-web-app
+  name: tensorboards-web-app-service
+  namespace: kubeflow
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: tensorboards-web-app
+    kustomize.component: tensorboards-web-app
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    prometheus.io/path: /metrics
+    prometheus.io/port: "8080"
+    prometheus.io/scrape: "true"
+  labels:
+    app: training-operator
+  name: training-operator
+  namespace: kubeflow
+spec:
+  ports:
+  - name: monitoring-port
+    port: 8080
+    targetPort: 8080
+  selector:
+    control-plane: kubeflow-training-operator
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: volumes-web-app
+    kustomize.component: volumes-web-app
+    run: volumes-web-app
+  name: volumes-web-app-service
+  namespace: kubeflow
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: volumes-web-app
+    kustomize.component: volumes-web-app
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: workflow-controller
+    application-crd-id: kubeflow-pipelines
+  name: workflow-controller-metrics
+  namespace: kubeflow
+spec:
+  ports:
+  - name: metrics
+    port: 9090
+    protocol: TCP
+    targetPort: 9090
+  selector:
+    app: workflow-controller
+    application-crd-id: kubeflow-pipelines
