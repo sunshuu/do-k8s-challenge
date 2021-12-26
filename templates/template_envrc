@@ -2,3 +2,6 @@ export DIGITALOCEAN_TOKEN=
 export TERRAFORM_S3_BUCKET=
 export KUBECONFIG=$(pwd)/kube/config
 export GITHUB_TOKEN=
+export AWS_SECRET_ACCESS_KEY=
+export AWS_ACCESS_KEY_ID=
+export AWS_DEFAULT_REGION=
