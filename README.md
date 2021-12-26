@@ -2,7 +2,7 @@
 
 Sunny Xu's submission to Digital Ocean's 2021 Kubernetes Challenge.
 
-Attempted Challenge: Deploy a machine learning managemetn platform
+Attempted Challenge: Deploy a machine learning management platform
 
 List of Tasks Performed:
 
@@ -22,7 +22,7 @@ List of Tasks Performed:
 - DigitalOcean Token
 - GitHub Repository token
 
-### Deploy Infastructure
+### Deploy Infrastructure
 
 Terraform (and terragrunt as a wrapper) is used to manage the infrastructure and bootstrap Flux.
 
@@ -31,10 +31,10 @@ Terraform has a fairly simple provider available for Digital Ocean resources, wh
 Bootstrapping the cluster with Flux offers some pros and cons but if this were more of a production environment, I would say that this is an extremely useful tool to make sure all the resources in the cluster is being tracked with GitOps. We are using it here to ensure all the components we install can be consistent across different deployments.
 
 1. Set up environment with the following variables. Fill in the appropriate variables in the `templates/template_envrc` file and run `cp templates/template_envrc .envrc` from the repository's root directory.
-2. If any additional configuration is desired, modify the `terragrunt.hcl` files accordingingly under the `infra/deploy` directories.
+2. If any additional configuration is desired, modify the `terragrunt.hcl` files accordingly under the `infra/deploy` directories.
 3. Navigate to the `infra/deploy` directory and run `terragrunt run-all apply`
 
-So what got deployed after running `terragrunt`? First a Digital Ocean K8s cluster got deployed and its kubeneretes configuration file was created in your repository's root directory. With that, you will be able to run `kubectl get nodes` to verify that the cluster is up and running. A Digital Ocean container registry has also been deployed which is required for some pipeline runs in Kubeflow.
+So what got deployed after running `terragrunt`? First a Digital Ocean K8s cluster got deployed and its kubernetes configuration file was created in your repository's root directory. With that, you will be able to run `kubectl get nodes` to verify that the cluster is up and running. A Digital Ocean container registry has also been deployed which is required for some pipeline runs in Kubeflow.
 
 
 ### Deploy Kubeflow
