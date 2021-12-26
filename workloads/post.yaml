@@ -1,14 +1,14 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1beta1
 kind: Kustomization
 metadata:
-  name: kubeflow-configs
+  name: kubeflow-post
   namespace: flux-system
 spec:
   dependsOn:
-    - name: kubeflow-ns
+    - name: kubeflow-workloads
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: kubeflow/configs
+  path: kubeflow/post
   prune: true
   interval: 1m0s

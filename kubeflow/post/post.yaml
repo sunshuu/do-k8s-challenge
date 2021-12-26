@@ -1,0 +1,2110 @@
+--
+apiVersion: caching.internal.knative.dev/v1alpha1
+kind: Image
+metadata:
+  labels:
+    serving.knative.dev/release: v0.22.1
+  name: queue-proxy
+  namespace: knative-serving
+spec:
+  image: gcr.io/knative-releases/knative.dev/serving/cmd/queue@sha256:0b8e031170354950f3395876961452af1c62f7ab5161c9e71867392c11881962
+---
+apiVersion: cert-manager.io/v1alpha2
+kind: Certificate
+metadata:
+  labels:
+    app: poddefaults
+    app.kubernetes.io/component: poddefaults
+    app.kubernetes.io/name: poddefaults
+    kustomize.component: poddefaults
+  name: admission-webhook-cert
+  namespace: kubeflow
+spec:
+  commonName: admission-webhook-service.kubeflow.svc
+  dnsNames:
+  - admission-webhook-service.kubeflow.svc
+  - admission-webhook-service.kubeflow.svc.cluster.local
+  isCA: true
+  issuerRef:
+    kind: Issuer
+    name: admission-webhook-selfsigned-issuer
+  secretName: webhook-certs
+---
+apiVersion: cert-manager.io/v1alpha2
+kind: Certificate
+metadata:
+  name: katib-webhook-cert
+  namespace: kubeflow
+spec:
+  commonName: katib-controller.kubeflow.svc
+  dnsNames:
+  - katib-controller.kubeflow.svc
+  - katib-controller.kubeflow.svc.cluster.local
+  isCA: true
+  issuerRef:
+    kind: Issuer
+    name: katib-selfsigned-issuer
+  secretName: katib-webhook-cert
+---
+apiVersion: cert-manager.io/v1alpha2
+kind: Certificate
+metadata:
+  labels:
+    app: kfserving
+    app.kubernetes.io/name: kfserving
+  name: serving-cert
+  namespace: kubeflow
+spec:
+  commonName: kfserving-webhook-server-service.kubeflow.svc
+  dnsNames:
+  - kfserving-webhook-server-service.kubeflow.svc
+  issuerRef:
+    kind: Issuer
+    name: selfsigned-issuer
+  secretName: kfserving-webhook-server-cert
+---
+apiVersion: cert-manager.io/v1alpha2
+kind: ClusterIssuer
+metadata:
+  labels:
+    app.kubernetes.io/component: cert-manager
+    app.kubernetes.io/name: cert-manager
+    kustomize.component: cert-manager
+  name: kubeflow-self-signing-issuer
+  namespace: cert-manager
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1alpha2
+kind: Issuer
+metadata:
+  labels:
+    app: poddefaults
+    app.kubernetes.io/component: poddefaults
+    app.kubernetes.io/name: poddefaults
+    kustomize.component: poddefaults
+  name: admission-webhook-selfsigned-issuer
+  namespace: kubeflow
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1alpha2
+kind: Issuer
+metadata:
+  name: katib-selfsigned-issuer
+  namespace: kubeflow
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1alpha2
+kind: Issuer
+metadata:
+  labels:
+    app: kfserving
+    app.kubernetes.io/name: kfserving
+  name: selfsigned-issuer
+  namespace: kubeflow
+spec:
+  selfSigned: {}
+---
+apiVersion: kubeflow.org/v1beta1
+kind: Profile
+metadata:
+  name: kubeflow-user-example-com
+spec:
+  owner:
+    kind: User
+    name: user@example.com
+---
+apiVersion: metacontroller.k8s.io/v1alpha1
+kind: CompositeController
+metadata:
+  labels:
+    app: kubeflow-pipelines-profile-controller
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: kubeflow-pipelines-profile-controller
+  namespace: kubeflow
+spec:
+  childResources:
+  - apiVersion: v1
+    resource: secrets
+    updateStrategy:
+      method: OnDelete
+  - apiVersion: v1
+    resource: configmaps
+    updateStrategy:
+      method: OnDelete
+  - apiVersion: apps/v1
+    resource: deployments
+    updateStrategy:
+      method: InPlace
+  - apiVersion: v1
+    resource: services
+    updateStrategy:
+      method: InPlace
+  - apiVersion: networking.istio.io/v1alpha3
+    resource: destinationrules
+    updateStrategy:
+      method: InPlace
+  - apiVersion: security.istio.io/v1beta1
+    resource: authorizationpolicies
+    updateStrategy:
+      method: InPlace
+  generateSelector: true
+  hooks:
+    sync:
+      webhook:
+        url: http://kubeflow-pipelines-profile-controller/sync
+  parentResource:
+    apiVersion: v1
+    resource: namespaces
+  resyncPeriodSeconds: 10
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: knative
+  namespace: knative-serving
+spec:
+  host: '*.knative-serving.svc.cluster.local'
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  labels:
+    application-crd-id: kubeflow-pipelines
+  name: metadata-grpc-service
+  namespace: kubeflow
+spec:
+  host: metadata-grpc-service.kubeflow.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  labels:
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: ml-pipeline
+  namespace: kubeflow
+spec:
+  host: ml-pipeline.kubeflow.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  labels:
+    application-crd-id: kubeflow-pipelines
+  name: ml-pipeline-minio
+  namespace: kubeflow
+spec:
+  host: minio-service.kubeflow.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  labels:
+    application-crd-id: kubeflow-pipelines
+  name: ml-pipeline-mysql
+  namespace: kubeflow
+spec:
+  host: mysql.kubeflow.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  labels:
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: ml-pipeline-ui
+  namespace: kubeflow
+spec:
+  host: ml-pipeline-ui.kubeflow.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  labels:
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: ml-pipeline-visualizationserver
+  namespace: kubeflow
+spec:
+  host: ml-pipeline-visualizationserver.kubeflow.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: authn-filter
+  namespace: istio-system
+spec:
+  configPatches:
+  - applyTo: HTTP_FILTER
+    listener:
+      filterChain:
+        filter:
+          name: envoy.http_connection_manager
+          subFilter:
+            name: ""
+    match:
+      context: GATEWAY
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: envoy.filters.http.ext_authz
+        typed_config:
+          '@type': type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+          http_service:
+            authorization_request:
+              allowed_headers:
+                patterns:
+                - exact: authorization
+                - exact: cookie
+                - exact: x-auth-token
+            authorization_response:
+              allowed_upstream_headers:
+                patterns:
+                - exact: kubeflow-userid
+            server_uri:
+              cluster: outbound|8080||authservice.istio-system.svc.cluster.local
+              timeout: 10s
+              uri: http://authservice.istio-system.svc.cluster.local
+  workloadSelector:
+    labels:
+      istio: ingressgateway
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  labels:
+    install.operator.istio.io/owning-resource: unknown
+    istio.io/rev: default
+    operator.istio.io/component: Pilot
+  name: metadata-exchange-1.8
+  namespace: istio-system
+spec:
+  configPatches:
+  - applyTo: HTTP_FILTER
+    match:
+      context: SIDECAR_INBOUND
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.http_connection_manager
+      proxy:
+        proxyVersion: ^1\.8.*
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: istio.metadata_exchange
+        typed_config:
+          '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+          type_url: type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
+          value:
+            config:
+              configuration:
+                '@type': type.googleapis.com/google.protobuf.StringValue
+                value: |
+                  {}
+              vm_config:
+                code:
+                  local:
+                    inline_string: envoy.wasm.metadata_exchange
+                runtime: envoy.wasm.runtime.null
+  - applyTo: HTTP_FILTER
+    match:
+      context: SIDECAR_OUTBOUND
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.http_connection_manager
+      proxy:
+        proxyVersion: ^1\.8.*
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: istio.metadata_exchange
+        typed_config:
+          '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+          type_url: type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
+          value:
+            config:
+              configuration:
+                '@type': type.googleapis.com/google.protobuf.StringValue
+                value: |
+                  {}
+              vm_config:
+                code:
+                  local:
+                    inline_string: envoy.wasm.metadata_exchange
+                runtime: envoy.wasm.runtime.null
+  - applyTo: HTTP_FILTER
+    match:
+      context: GATEWAY
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.http_connection_manager
+      proxy:
+        proxyVersion: ^1\.8.*
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: istio.metadata_exchange
+        typed_config:
+          '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+          type_url: type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
+          value:
+            config:
+              configuration:
+                '@type': type.googleapis.com/google.protobuf.StringValue
+                value: |
+                  {}
+              vm_config:
+                code:
+                  local:
+                    inline_string: envoy.wasm.metadata_exchange
+                runtime: envoy.wasm.runtime.null
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  labels:
+    install.operator.istio.io/owning-resource: unknown
+    istio.io/rev: default
+    operator.istio.io/component: Pilot
+  name: metadata-exchange-1.9
+  namespace: istio-system
+spec:
+  configPatches:
+  - applyTo: HTTP_FILTER
+    match:
+      context: SIDECAR_INBOUND
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.http_connection_manager
+      proxy:
+        proxyVersion: ^1\.9.*
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: istio.metadata_exchange
+        typed_config:
+          '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+          type_url: type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
+          value:
+            config:
+              configuration:
+                '@type': type.googleapis.com/google.protobuf.StringValue
+                value: |
+                  {}
+              vm_config:
+                code:
+                  local:
+                    inline_string: envoy.wasm.metadata_exchange
+                runtime: envoy.wasm.runtime.null
+  - applyTo: HTTP_FILTER
+    match:
+      context: SIDECAR_OUTBOUND
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.http_connection_manager
+      proxy:
+        proxyVersion: ^1\.9.*
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: istio.metadata_exchange
+        typed_config:
+          '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+          type_url: type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
+          value:
+            config:
+              configuration:
+                '@type': type.googleapis.com/google.protobuf.StringValue
+                value: |
+                  {}
+              vm_config:
+                code:
+                  local:
+                    inline_string: envoy.wasm.metadata_exchange
+                runtime: envoy.wasm.runtime.null
+  - applyTo: HTTP_FILTER
+    match:
+      context: GATEWAY
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.http_connection_manager
+      proxy:
+        proxyVersion: ^1\.9.*
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: istio.metadata_exchange
+        typed_config:
+          '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+          type_url: type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
+          value:
+            config:
+              configuration:
+                '@type': type.googleapis.com/google.protobuf.StringValue
+                value: |
+                  {}
+              vm_config:
+                code:
+                  local:
+                    inline_string: envoy.wasm.metadata_exchange
+                runtime: envoy.wasm.runtime.null
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  labels:
+    istio.io/rev: default
+  name: stats-filter-1.8
+  namespace: istio-system
+spec:
+  configPatches:
+  - applyTo: HTTP_FILTER
+    match:
+      context: SIDECAR_OUTBOUND
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.http_connection_manager
+            subFilter:
+              name: envoy.filters.http.router
+      proxy:
+        proxyVersion: ^1\.8.*
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: istio.stats
+        typed_config:
+          '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+          type_url: type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
+          value:
+            config:
+              configuration:
+                '@type': type.googleapis.com/google.protobuf.StringValue
+                value: |
+                  {
+                  }
+              root_id: stats_outbound
+              vm_config:
+                code:
+                  local:
+                    inline_string: envoy.wasm.stats
+                runtime: envoy.wasm.runtime.null
+                vm_id: stats_outbound
+  - applyTo: HTTP_FILTER
+    match:
+      context: SIDECAR_INBOUND
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.http_connection_manager
+            subFilter:
+              name: envoy.filters.http.router
+      proxy:
+        proxyVersion: ^1\.8.*
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: istio.stats
+        typed_config:
+          '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+          type_url: type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
+          value:
+            config:
+              configuration:
+                '@type': type.googleapis.com/google.protobuf.StringValue
+                value: |
+                  {
+                  }
+              root_id: stats_inbound
+              vm_config:
+                code:
+                  local:
+                    inline_string: envoy.wasm.stats
+                runtime: envoy.wasm.runtime.null
+                vm_id: stats_inbound
+  - applyTo: HTTP_FILTER
+    match:
+      context: GATEWAY
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.http_connection_manager
+            subFilter:
+              name: envoy.filters.http.router
+      proxy:
+        proxyVersion: ^1\.8.*
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: istio.stats
+        typed_config:
+          '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+          type_url: type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
+          value:
+            config:
+              configuration:
+                '@type': type.googleapis.com/google.protobuf.StringValue
+                value: |
+                  {
+                    "disable_host_header_fallback": true
+                  }
+              root_id: stats_outbound
+              vm_config:
+                code:
+                  local:
+                    inline_string: envoy.wasm.stats
+                runtime: envoy.wasm.runtime.null
+                vm_id: stats_outbound
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  labels:
+    istio.io/rev: default
+  name: stats-filter-1.9
+  namespace: istio-system
+spec:
+  configPatches:
+  - applyTo: HTTP_FILTER
+    match:
+      context: SIDECAR_OUTBOUND
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.http_connection_manager
+            subFilter:
+              name: envoy.filters.http.router
+      proxy:
+        proxyVersion: ^1\.9.*
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: istio.stats
+        typed_config:
+          '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+          type_url: type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
+          value:
+            config:
+              configuration:
+                '@type': type.googleapis.com/google.protobuf.StringValue
+                value: |
+                  {
+                    "debug": "false",
+                    "stat_prefix": "istio",
+                    "metrics": [
+                      {
+                        "dimensions": {
+                          "source_cluster": "node.metadata['CLUSTER_ID']",
+                          "destination_cluster": "upstream_peer.cluster_id"
+                        }
+                      }
+                    ]
+                  }
+              root_id: stats_outbound
+              vm_config:
+                code:
+                  local:
+                    inline_string: envoy.wasm.stats
+                runtime: envoy.wasm.runtime.null
+                vm_id: stats_outbound
+  - applyTo: HTTP_FILTER
+    match:
+      context: SIDECAR_INBOUND
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.http_connection_manager
+            subFilter:
+              name: envoy.filters.http.router
+      proxy:
+        proxyVersion: ^1\.9.*
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: istio.stats
+        typed_config:
+          '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+          type_url: type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
+          value:
+            config:
+              configuration:
+                '@type': type.googleapis.com/google.protobuf.StringValue
+                value: |
+                  {
+                    "debug": "false",
+                    "stat_prefix": "istio",
+                    "metrics": [
+                      {
+                        "dimensions": {
+                          "destination_cluster": "node.metadata['CLUSTER_ID']",
+                          "source_cluster": "downstream_peer.cluster_id"
+                        }
+                      }
+                    ]
+                  }
+              root_id: stats_inbound
+              vm_config:
+                code:
+                  local:
+                    inline_string: envoy.wasm.stats
+                runtime: envoy.wasm.runtime.null
+                vm_id: stats_inbound
+  - applyTo: HTTP_FILTER
+    match:
+      context: GATEWAY
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.http_connection_manager
+            subFilter:
+              name: envoy.filters.http.router
+      proxy:
+        proxyVersion: ^1\.9.*
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: istio.stats
+        typed_config:
+          '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+          type_url: type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
+          value:
+            config:
+              configuration:
+                '@type': type.googleapis.com/google.protobuf.StringValue
+                value: |
+                  {
+                    "debug": "false",
+                    "stat_prefix": "istio",
+                    "disable_host_header_fallback": true,
+                    "metrics": [
+                      {
+                        "dimensions": {
+                          "source_cluster": "node.metadata['CLUSTER_ID']",
+                          "destination_cluster": "upstream_peer.cluster_id"
+                        }
+                      }
+                    ]
+                  }
+              root_id: stats_outbound
+              vm_config:
+                code:
+                  local:
+                    inline_string: envoy.wasm.stats
+                runtime: envoy.wasm.runtime.null
+                vm_id: stats_outbound
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  labels:
+    istio.io/rev: default
+  name: tcp-metadata-exchange-1.8
+  namespace: istio-system
+spec:
+  configPatches:
+  - applyTo: NETWORK_FILTER
+    match:
+      context: SIDECAR_INBOUND
+      listener: {}
+      proxy:
+        proxyVersion: ^1\.8.*
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: istio.metadata_exchange
+        typed_config:
+          '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+          type_url: type.googleapis.com/envoy.tcp.metadataexchange.config.MetadataExchange
+          value:
+            protocol: istio-peer-exchange
+  - applyTo: CLUSTER
+    match:
+      cluster: {}
+      context: SIDECAR_OUTBOUND
+      proxy:
+        proxyVersion: ^1\.8.*
+    patch:
+      operation: MERGE
+      value:
+        filters:
+        - name: istio.metadata_exchange
+          typed_config:
+            '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+            type_url: type.googleapis.com/envoy.tcp.metadataexchange.config.MetadataExchange
+            value:
+              protocol: istio-peer-exchange
+  - applyTo: CLUSTER
+    match:
+      cluster: {}
+      context: GATEWAY
+      proxy:
+        proxyVersion: ^1\.8.*
+    patch:
+      operation: MERGE
+      value:
+        filters:
+        - name: istio.metadata_exchange
+          typed_config:
+            '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+            type_url: type.googleapis.com/envoy.tcp.metadataexchange.config.MetadataExchange
+            value:
+              protocol: istio-peer-exchange
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  labels:
+    istio.io/rev: default
+  name: tcp-metadata-exchange-1.9
+  namespace: istio-system
+spec:
+  configPatches:
+  - applyTo: NETWORK_FILTER
+    match:
+      context: SIDECAR_INBOUND
+      listener: {}
+      proxy:
+        proxyVersion: ^1\.9.*
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: istio.metadata_exchange
+        typed_config:
+          '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+          type_url: type.googleapis.com/envoy.tcp.metadataexchange.config.MetadataExchange
+          value:
+            protocol: istio-peer-exchange
+  - applyTo: CLUSTER
+    match:
+      cluster: {}
+      context: SIDECAR_OUTBOUND
+      proxy:
+        proxyVersion: ^1\.9.*
+    patch:
+      operation: MERGE
+      value:
+        filters:
+        - name: istio.metadata_exchange
+          typed_config:
+            '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+            type_url: type.googleapis.com/envoy.tcp.metadataexchange.config.MetadataExchange
+            value:
+              protocol: istio-peer-exchange
+  - applyTo: CLUSTER
+    match:
+      cluster: {}
+      context: GATEWAY
+      proxy:
+        proxyVersion: ^1\.9.*
+    patch:
+      operation: MERGE
+      value:
+        filters:
+        - name: istio.metadata_exchange
+          typed_config:
+            '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+            type_url: type.googleapis.com/envoy.tcp.metadataexchange.config.MetadataExchange
+            value:
+              protocol: istio-peer-exchange
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  labels:
+    istio.io/rev: default
+  name: tcp-stats-filter-1.8
+  namespace: istio-system
+spec:
+  configPatches:
+  - applyTo: NETWORK_FILTER
+    match:
+      context: SIDECAR_INBOUND
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.tcp_proxy
+      proxy:
+        proxyVersion: ^1\.8.*
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: istio.stats
+        typed_config:
+          '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+          type_url: type.googleapis.com/envoy.extensions.filters.network.wasm.v3.Wasm
+          value:
+            config:
+              configuration:
+                '@type': type.googleapis.com/google.protobuf.StringValue
+                value: |
+                  {
+                  }
+              root_id: stats_inbound
+              vm_config:
+                code:
+                  local:
+                    inline_string: envoy.wasm.stats
+                runtime: envoy.wasm.runtime.null
+                vm_id: tcp_stats_inbound
+  - applyTo: NETWORK_FILTER
+    match:
+      context: SIDECAR_OUTBOUND
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.tcp_proxy
+      proxy:
+        proxyVersion: ^1\.8.*
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: istio.stats
+        typed_config:
+          '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+          type_url: type.googleapis.com/envoy.extensions.filters.network.wasm.v3.Wasm
+          value:
+            config:
+              configuration:
+                '@type': type.googleapis.com/google.protobuf.StringValue
+                value: |
+                  {
+                  }
+              root_id: stats_outbound
+              vm_config:
+                code:
+                  local:
+                    inline_string: envoy.wasm.stats
+                runtime: envoy.wasm.runtime.null
+                vm_id: tcp_stats_outbound
+  - applyTo: NETWORK_FILTER
+    match:
+      context: GATEWAY
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.tcp_proxy
+      proxy:
+        proxyVersion: ^1\.8.*
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: istio.stats
+        typed_config:
+          '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+          type_url: type.googleapis.com/envoy.extensions.filters.network.wasm.v3.Wasm
+          value:
+            config:
+              configuration:
+                '@type': type.googleapis.com/google.protobuf.StringValue
+                value: |
+                  {
+                  }
+              root_id: stats_outbound
+              vm_config:
+                code:
+                  local:
+                    inline_string: envoy.wasm.stats
+                runtime: envoy.wasm.runtime.null
+                vm_id: tcp_stats_outbound
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  labels:
+    istio.io/rev: default
+  name: tcp-stats-filter-1.9
+  namespace: istio-system
+spec:
+  configPatches:
+  - applyTo: NETWORK_FILTER
+    match:
+      context: SIDECAR_INBOUND
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.tcp_proxy
+      proxy:
+        proxyVersion: ^1\.9.*
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: istio.stats
+        typed_config:
+          '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+          type_url: type.googleapis.com/envoy.extensions.filters.network.wasm.v3.Wasm
+          value:
+            config:
+              configuration:
+                '@type': type.googleapis.com/google.protobuf.StringValue
+                value: |
+                  {
+                    "debug": "false",
+                    "stat_prefix": "istio",
+                    "metrics": [
+                      {
+                        "dimensions": {
+                          "destination_cluster": "node.metadata['CLUSTER_ID']",
+                          "source_cluster": "downstream_peer.cluster_id"
+                        }
+                      }
+                    ]
+                  }
+              root_id: stats_inbound
+              vm_config:
+                code:
+                  local:
+                    inline_string: envoy.wasm.stats
+                runtime: envoy.wasm.runtime.null
+                vm_id: tcp_stats_inbound
+  - applyTo: NETWORK_FILTER
+    match:
+      context: SIDECAR_OUTBOUND
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.tcp_proxy
+      proxy:
+        proxyVersion: ^1\.9.*
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: istio.stats
+        typed_config:
+          '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+          type_url: type.googleapis.com/envoy.extensions.filters.network.wasm.v3.Wasm
+          value:
+            config:
+              configuration:
+                '@type': type.googleapis.com/google.protobuf.StringValue
+                value: |
+                  {
+                    "debug": "false",
+                    "stat_prefix": "istio",
+                    "metrics": [
+                      {
+                        "dimensions": {
+                          "source_cluster": "node.metadata['CLUSTER_ID']",
+                          "destination_cluster": "upstream_peer.cluster_id"
+                        }
+                      }
+                    ]
+                  }
+              root_id: stats_outbound
+              vm_config:
+                code:
+                  local:
+                    inline_string: envoy.wasm.stats
+                runtime: envoy.wasm.runtime.null
+                vm_id: tcp_stats_outbound
+  - applyTo: NETWORK_FILTER
+    match:
+      context: GATEWAY
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.tcp_proxy
+      proxy:
+        proxyVersion: ^1\.9.*
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: istio.stats
+        typed_config:
+          '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+          type_url: type.googleapis.com/envoy.extensions.filters.network.wasm.v3.Wasm
+          value:
+            config:
+              configuration:
+                '@type': type.googleapis.com/google.protobuf.StringValue
+                value: |
+                  {
+                    "debug": "false",
+                    "stat_prefix": "istio",
+                    "metrics": [
+                      {
+                        "dimensions": {
+                          "source_cluster": "node.metadata['CLUSTER_ID']",
+                          "destination_cluster": "upstream_peer.cluster_id"
+                        }
+                      }
+                    ]
+                  }
+              root_id: stats_outbound
+              vm_config:
+                code:
+                  local:
+                    inline_string: envoy.wasm.stats
+                runtime: envoy.wasm.runtime.null
+                vm_id: tcp_stats_outbound
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: x-forwarded-host
+  namespace: istio-system
+spec:
+  configPatches:
+  - applyTo: HTTP_FILTER
+    match:
+      context: GATEWAY
+      listener:
+        filterChain:
+          filter:
+            name: envoy.http_connection_manager
+            subFilter:
+              name: envoy.router
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: envoy.filters.http.lua
+        typed_config:
+          '@type': type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+          inlineCode: |
+            function envoy_on_request(request_handle)
+              local host = request_handle:headers():get(":authority")
+              request_handle:headers():add("x-forwarded-host", host)
+            end
+  workloadSelector:
+    labels:
+      istio: ingressgateway
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  labels:
+    release: istio
+  name: cluster-local-gateway
+  namespace: istio-system
+spec:
+  selector:
+    app: cluster-local-gateway
+    istio: cluster-local-gateway
+  servers:
+  - hosts:
+    - '*'
+    port:
+      name: http
+      number: 80
+      protocol: HTTP
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  labels:
+    release: istio
+  name: istio-ingressgateway
+  namespace: istio-system
+spec:
+  selector:
+    app: istio-ingressgateway
+    istio: ingressgateway
+  servers:
+  - hosts:
+    - '*'
+    port:
+      name: http
+      number: 80
+      protocol: HTTP
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  labels:
+    networking.knative.dev/ingress-provider: istio
+    serving.knative.dev/release: v0.22.1
+  name: knative-local-gateway
+  namespace: knative-serving
+spec:
+  selector:
+    app: cluster-local-gateway
+    istio: cluster-local-gateway
+  servers:
+  - hosts:
+    - '*'
+    port:
+      name: http
+      number: 8081
+      protocol: HTTP
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: kubeflow-gateway
+  namespace: kubeflow
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - hosts:
+    - '*'
+    port:
+      name: http
+      number: 80
+      protocol: HTTP
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: dex
+  namespace: auth
+spec:
+  gateways:
+  - kubeflow/kubeflow-gateway
+  hosts:
+  - '*'
+  http:
+  - match:
+    - uri:
+        prefix: /dex/
+    route:
+    - destination:
+        host: dex.auth.svc.cluster.local
+        port:
+          number: 5556
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  labels:
+    app: centraldashboard
+    app.kubernetes.io/component: centraldashboard
+    app.kubernetes.io/name: centraldashboard
+    kustomize.component: centraldashboard
+  name: centraldashboard
+  namespace: kubeflow
+spec:
+  gateways:
+  - kubeflow-gateway
+  hosts:
+  - '*'
+  http:
+  - match:
+    - uri:
+        prefix: /
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: centraldashboard.kubeflow.svc.cluster.local
+        port:
+          number: 80
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  labels:
+    app: jupyter-web-app
+    kustomize.component: jupyter-web-app
+  name: jupyter-web-app-jupyter-web-app
+  namespace: kubeflow
+spec:
+  gateways:
+  - kubeflow-gateway
+  hosts:
+  - '*'
+  http:
+  - headers:
+      request:
+        add:
+          x-forwarded-prefix: /jupyter
+    match:
+    - uri:
+        prefix: /jupyter/
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: jupyter-web-app-service.kubeflow.svc.cluster.local
+        port:
+          number: 80
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: katib-ui
+  namespace: kubeflow
+spec:
+  gateways:
+  - kubeflow-gateway
+  hosts:
+  - '*'
+  http:
+  - match:
+    - uri:
+        prefix: /katib/
+    rewrite:
+      uri: /katib/
+    route:
+    - destination:
+        host: katib-ui.kubeflow.svc.cluster.local
+        port:
+          number: 80
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  labels:
+    application-crd-id: kubeflow-pipelines
+  name: metadata-grpc
+  namespace: kubeflow
+spec:
+  gateways:
+  - kubeflow-gateway
+  hosts:
+  - '*'
+  http:
+  - match:
+    - uri:
+        prefix: /ml_metadata
+    rewrite:
+      uri: /ml_metadata
+    route:
+    - destination:
+        host: metadata-envoy-service.kubeflow.svc.cluster.local
+        port:
+          number: 9090
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  labels:
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: ml-pipeline-ui
+  namespace: kubeflow
+spec:
+  gateways:
+  - kubeflow-gateway
+  hosts:
+  - '*'
+  http:
+  - match:
+    - uri:
+        prefix: /pipeline
+    rewrite:
+      uri: /pipeline
+    route:
+    - destination:
+        host: ml-pipeline-ui.kubeflow.svc.cluster.local
+        port:
+          number: 80
+    timeout: 300s
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  labels:
+    kustomize.component: profiles
+  name: profiles-kfam
+  namespace: kubeflow
+spec:
+  gateways:
+  - kubeflow-gateway
+  hosts:
+  - '*'
+  http:
+  - headers:
+      request:
+        add:
+          x-forwarded-prefix: /kfam
+    match:
+    - uri:
+        prefix: /kfam/
+    rewrite:
+      uri: /kfam/
+    route:
+    - destination:
+        host: profiles-kfam.kubeflow.svc.cluster.local
+        port:
+          number: 8081
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  labels:
+    app: tensorboards-web-app
+    kustomize.component: tensorboards-web-app
+  name: tensorboards-web-app-tensorboards-web-app
+  namespace: kubeflow
+spec:
+  gateways:
+  - kubeflow-gateway
+  hosts:
+  - '*'
+  http:
+  - headers:
+      request:
+        add:
+          x-forwarded-prefix: /tensorboards
+    match:
+    - uri:
+        prefix: /tensorboards/
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: tensorboards-web-app-service.kubeflow.svc.cluster.local
+        port:
+          number: 80
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  labels:
+    app: volumes-web-app
+    kustomize.component: volumes-web-app
+  name: volumes-web-app-volumes-web-app
+  namespace: kubeflow
+spec:
+  gateways:
+  - kubeflow-gateway
+  hosts:
+  - '*'
+  http:
+  - headers:
+      request:
+        add:
+          x-forwarded-prefix: /volumes
+    match:
+    - uri:
+        prefix: /volumes/
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: volumes-web-app-service.kubeflow.svc.cluster.local
+        port:
+          number: 80
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  labels:
+    app: kfserving
+    app.kubernetes.io/component: kfserving-models-web-app
+    app.kubernetes.io/name: kfserving
+    kustomize.component: kfserving-models-web-app
+  name: kfserving-models-web-app
+  namespace: kubeflow
+spec:
+  gateways:
+  - kubeflow/kubeflow-gateway
+  hosts:
+  - '*'
+  http:
+  - match:
+    - uri:
+        prefix: /models/
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: kfserving-models-web-app.kubeflow.svc.cluster.local
+        port:
+          number: 80
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: cluster-local-gateway
+  namespace: istio-system
+spec:
+  action: ALLOW
+  rules:
+  - {}
+  selector:
+    matchLabels:
+      app: cluster-local-gateway
+      istio: cluster-local-gateway
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: global-deny-all
+  namespace: istio-system
+spec: {}
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: istio-ingressgateway
+  namespace: istio-system
+spec:
+  action: ALLOW
+  rules:
+  - {}
+  selector:
+    matchLabels:
+      app: istio-ingressgateway
+      istio: ingressgateway
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: activator-service
+  namespace: knative-serving
+spec:
+  action: ALLOW
+  rules:
+  - {}
+  selector:
+    matchLabels:
+      app: activator
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: autoscaler
+  namespace: knative-serving
+spec:
+  action: ALLOW
+  rules:
+  - {}
+  selector:
+    matchLabels:
+      app: autoscaler
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: controller
+  namespace: knative-serving
+spec:
+  action: ALLOW
+  rules:
+  - {}
+  selector:
+    matchLabels:
+      app: controller
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: istio-webhook
+  namespace: knative-serving
+spec:
+  action: ALLOW
+  rules:
+  - {}
+  selector:
+    matchLabels:
+      app: istio-webhook
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: webhook
+  namespace: knative-serving
+spec:
+  action: ALLOW
+  rules:
+  - {}
+  selector:
+    matchLabels:
+      role: webhook
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  labels:
+    app: kfserving
+    app.kubernetes.io/component: kfserving-models-web-app
+    app.kubernetes.io/name: kfserving
+    kustomize.component: kfserving-models-web-app
+  name: kfserving-models-web-app
+  namespace: kubeflow
+spec:
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals:
+        - cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account
+  selector:
+    matchLabels:
+      app: kfserving
+      app.kubernetes.io/component: kfserving-models-web-app
+      app.kubernetes.io/name: kfserving
+      kustomize.component: kfserving-models-web-app
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  labels:
+    application-crd-id: kubeflow-pipelines
+  name: metadata-grpc-service
+  namespace: kubeflow
+spec:
+  action: ALLOW
+  rules:
+  - {}
+  selector:
+    matchLabels:
+      component: metadata-grpc-server
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  labels:
+    application-crd-id: kubeflow-pipelines
+  name: minio-service
+  namespace: kubeflow
+spec:
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals:
+        - cluster.local/ns/kubeflow/sa/ml-pipeline
+  - from:
+    - source:
+        principals:
+        - cluster.local/ns/kubeflow/sa/ml-pipeline-ui
+  - {}
+  selector:
+    matchLabels:
+      app: minio
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  labels:
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: ml-pipeline
+  namespace: kubeflow
+spec:
+  rules:
+  - from:
+    - source:
+        principals:
+        - cluster.local/ns/kubeflow/sa/ml-pipeline
+        - cluster.local/ns/kubeflow/sa/ml-pipeline-ui
+        - cluster.local/ns/kubeflow/sa/ml-pipeline-persistenceagent
+        - cluster.local/ns/kubeflow/sa/ml-pipeline-scheduledworkflow
+        - cluster.local/ns/kubeflow/sa/ml-pipeline-viewer-crd-service-account
+        - cluster.local/ns/kubeflow/sa/kubeflow-pipelines-cache
+  - when:
+    - key: request.headers[kubeflow-userid]
+      notValues:
+      - '*'
+  selector:
+    matchLabels:
+      app: ml-pipeline
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  labels:
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: ml-pipeline-ui
+  namespace: kubeflow
+spec:
+  rules:
+  - from:
+    - source:
+        namespaces:
+        - istio-system
+  selector:
+    matchLabels:
+      app: ml-pipeline-ui
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  labels:
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: ml-pipeline-visualizationserver
+  namespace: kubeflow
+spec:
+  rules:
+  - from:
+    - source:
+        principals:
+        - cluster.local/ns/kubeflow/sa/ml-pipeline
+        - cluster.local/ns/kubeflow/sa/ml-pipeline-ui
+        - cluster.local/ns/kubeflow/sa/ml-pipeline-persistenceagent
+        - cluster.local/ns/kubeflow/sa/ml-pipeline-scheduledworkflow
+        - cluster.local/ns/kubeflow/sa/ml-pipeline-viewer-crd-service-account
+        - cluster.local/ns/kubeflow/sa/kubeflow-pipelines-cache
+  selector:
+    matchLabels:
+      app: ml-pipeline-visualizationserver
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  labels:
+    application-crd-id: kubeflow-pipelines
+  name: mysql
+  namespace: kubeflow
+spec:
+  rules:
+  - from:
+    - source:
+        principals:
+        - cluster.local/ns/kubeflow/sa/ml-pipeline
+        - cluster.local/ns/kubeflow/sa/ml-pipeline-ui
+        - cluster.local/ns/kubeflow/sa/ml-pipeline-persistenceagent
+        - cluster.local/ns/kubeflow/sa/ml-pipeline-scheduledworkflow
+        - cluster.local/ns/kubeflow/sa/ml-pipeline-viewer-crd-service-account
+        - cluster.local/ns/kubeflow/sa/kubeflow-pipelines-cache
+        - cluster.local/ns/kubeflow/sa/metadata-grpc-server
+  selector:
+    matchLabels:
+      app: mysql
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  labels:
+    app.kubernetes.io/component: ml-pipeline
+    app.kubernetes.io/name: kubeflow-pipelines
+    application-crd-id: kubeflow-pipelines
+  name: service-cache-server
+  namespace: kubeflow
+spec:
+  rules:
+  - {}
+  selector:
+    matchLabels:
+      app: cache-server
+---
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  labels:
+    networking.knative.dev/ingress-provider: istio
+    serving.knative.dev/release: v0.22.1
+  name: domainmapping-webhook
+  namespace: knative-serving
+spec:
+  portLevelMtls:
+    "8443":
+      mode: PERMISSIVE
+  selector:
+    matchLabels:
+      app: domainmapping-webhook
+---
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  labels:
+    networking.knative.dev/ingress-provider: istio
+    serving.knative.dev/release: v0.22.1
+  name: istio-webhook
+  namespace: knative-serving
+spec:
+  portLevelMtls:
+    "8443":
+      mode: PERMISSIVE
+  selector:
+    matchLabels:
+      app: istio-webhook
+---
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  labels:
+    networking.knative.dev/ingress-provider: istio
+    serving.knative.dev/release: v0.22.1
+  name: webhook
+  namespace: knative-serving
+spec:
+  portLevelMtls:
+    "8443":
+      mode: PERMISSIVE
+  selector:
+    matchLabels:
+      app: webhook
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: authservice-pvc
+  namespace: istio-system
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: katib-mysql
+  namespace: kubeflow
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    application-crd-id: kubeflow-pipelines
+  name: minio-pvc
+  namespace: kubeflow
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    application-crd-id: kubeflow-pipelines
+  name: mysql-pv-claim
+  namespace: kubeflow
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from-secret: cert-manager/cert-manager-webhook-ca
+  labels:
+    app: webhook
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/instance: cert-manager
+    app.kubernetes.io/name: webhook
+  name: cert-manager-webhook
+webhooks:
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: cert-manager-webhook
+      namespace: cert-manager
+      path: /validate
+  failurePolicy: Fail
+  name: webhook.cert-manager.io
+  namespaceSelector:
+    matchExpressions:
+    - key: cert-manager.io/disable-validation
+      operator: NotIn
+      values:
+      - "true"
+    - key: name
+      operator: NotIn
+      values:
+      - cert-manager
+  rules:
+  - apiGroups:
+    - cert-manager.io
+    - acme.cert-manager.io
+    apiVersions:
+    - '*'
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - '*/*'
+  sideEffects: None
+  timeoutSeconds: 10
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  labels:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    eventing.knative.dev/release: v0.22.1
+    kustomize.component: knative
+  name: config.webhook.eventing.knative.dev
+webhooks:
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: eventing-webhook
+      namespace: knative-eventing
+  failurePolicy: Ignore
+  name: config.webhook.eventing.knative.dev
+  namespaceSelector:
+    matchExpressions:
+    - key: eventing.knative.dev/release
+      operator: Exists
+  sideEffects: None
+  timeoutSeconds: 10
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  labels:
+    networking.knative.dev/ingress-provider: istio
+    serving.knative.dev/release: v0.22.1
+  name: config.webhook.istio.networking.internal.knative.dev
+webhooks:
+- admissionReviewVersions:
+  - v1beta1
+  clientConfig:
+    service:
+      name: istio-webhook
+      namespace: knative-serving
+  failurePolicy: Fail
+  name: config.webhook.istio.networking.internal.knative.dev
+  namespaceSelector:
+    matchExpressions:
+    - key: serving.knative.dev/release
+      operator: Exists
+  sideEffects: None
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  labels:
+    serving.knative.dev/release: v0.22.1
+  name: config.webhook.serving.knative.dev
+webhooks:
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook
+      namespace: knative-serving
+  failurePolicy: Fail
+  name: config.webhook.serving.knative.dev
+  namespaceSelector:
+    matchExpressions:
+    - key: serving.knative.dev/release
+      operator: Exists
+  sideEffects: None
+  timeoutSeconds: 10
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: kubeflow/katib-webhook-cert
+  name: katib.kubeflow.org
+webhooks:
+- admissionReviewVersions:
+  - v1beta1
+  clientConfig:
+    caBundle: Cg==
+    service:
+      name: katib-controller
+      namespace: kubeflow
+      path: /validate-experiment
+  failurePolicy: Ignore
+  name: validator.experiment.katib.kubeflow.org
+  rules:
+  - apiGroups:
+    - kubeflow.org
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - experiments
+  sideEffects: None
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  labels:
+    app.kubernetes.io/component: knative-eventing
+    app.kubernetes.io/name: knative-eventing
+    eventing.knative.dev/release: v0.22.1
+    kustomize.component: knative
+  name: validation.webhook.eventing.knative.dev
+webhooks:
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: eventing-webhook
+      namespace: knative-eventing
+  failurePolicy: Fail
+  name: validation.webhook.eventing.knative.dev
+  sideEffects: None
+  timeoutSeconds: 10
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  labels:
+    serving.knative.dev/release: v0.22.1
+  name: validation.webhook.serving.knative.dev
+webhooks:
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook
+      namespace: knative-serving
+  failurePolicy: Fail
+  name: validation.webhook.serving.knative.dev
+  sideEffects: None
+  timeoutSeconds: 10
+---
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: ValidatingWebhookConfiguration
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: kubeflow/serving-cert
+  creationTimestamp: null
+  labels:
+    app: kfserving
+    app.kubernetes.io/name: kfserving
+  name: inferenceservice.serving.kubeflow.org
+webhooks:
+- clientConfig:
+    caBundle: Cg==
+    service:
+      name: kfserving-webhook-server-service
+      namespace: kubeflow
+      path: /validate-serving-kubeflow-org-v1alpha2-inferenceservice
+  failurePolicy: Fail
+  name: inferenceservice.kfserving-webhook-server.validator
+  rules:
+  - apiGroups:
+    - serving.kubeflow.org
+    apiVersions:
+    - v1alpha2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - inferenceservices
+- clientConfig:
+    caBundle: Cg==
+    service:
+      name: kfserving-webhook-server-service
+      namespace: kubeflow
+      path: /validate-serving-kubeflow-org-v1beta1-inferenceservice
+  failurePolicy: Fail
+  name: inferenceservice.kfserving-webhook-server.v1beta1.validator
+  rules:
+  - apiGroups:
+    - serving.kubeflow.org
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - inferenceservices
+---
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: ValidatingWebhookConfiguration
+metadata:
+  labels:
+    app: istiod
+    istio: istiod
+    release: istio
+  name: istiod-istio-system
+webhooks:
+- admissionReviewVersions:
+  - v1beta1
+  - v1
+  clientConfig:
+    caBundle: ""
+    service:
+      name: istiod
+      namespace: istio-system
+      path: /validate
+  failurePolicy: Ignore
+  name: validation.istio.io
+  rules:
+  - apiGroups:
+    - security.istio.io
+    - networking.istio.io
+    apiVersions:
+    - '*'
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - '*'
+  sideEffects: None
+---
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: ValidatingWebhookConfiguration
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: kubeflow/serving-cert
+  creationTimestamp: null
+  labels:
+    app: kfserving
+    app.kubernetes.io/name: kfserving
+  name: trainedmodel.serving.kubeflow.org
+webhooks:
+- clientConfig:
+    caBundle: Cg==
+    service:
+      name: kfserving-webhook-server-service
+      namespace: kubeflow
+      path: /validate-serving-kubeflow-org-v1alpha1-trainedmodel
+  failurePolicy: Fail
+  name: trainedmodel.kfserving-webhook-server.validator
+  rules:
+  - apiGroups:
+    - serving.kubeflow.org
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - trainedmodels

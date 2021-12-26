@@ -5,7 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   dependsOn:
-    - name: kubeflow-configs
+    - name: kubeflow-prereqs
   sourceRef:
     kind: GitRepository
     name: flux-system
