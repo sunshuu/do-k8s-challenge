@@ -78,7 +78,7 @@ I cannot run `terragrunt run-all destroy`.
 
 > Some resources and namespaces are stubborn and refuse to be deleted. It is easier to just delete it from the cluster directory and remove the tfstate for bootstrap manually.
 
-### Additioanl Notes
+### Additional Notes
 
 > Environment variable `APP_SECURE_COOKIES` were set the false for jupyter. Required because it is being accessed via HTTP instead of HTTPS.
 
