@@ -10,5 +10,5 @@ spec:
     kind: GitRepository
     name: flux-system
   path: kubeflow/post
-  prune: true
+  prune: false
   interval: 1m0s

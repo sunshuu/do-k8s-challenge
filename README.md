@@ -57,3 +57,5 @@ kubectl -n mnist create configmap docker-config --from-literal=config.json=$(kub
  pip install kubeflow-fairing
 
  git clone https://github.com/kubeflow/examples.git git_kubeflow-examples
+
+ registry.digitalocean.com/cannedlobster-do-challenge
