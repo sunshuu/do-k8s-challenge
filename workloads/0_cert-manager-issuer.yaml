@@ -1,14 +1,14 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1beta1
 kind: Kustomization
 metadata:
-  name: mpi-operator
+  name: cert-manager-issuer
   namespace: flux-system
 spec:
   dependsOn:
-    - name: training-operator
+    - name: cert-manager
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: kubeflow/1.4/mpi-operator
-  prune: false
+  path: kubeflow/1.4/cert-manager/issuer
+  prune: true
   interval: 1m0s

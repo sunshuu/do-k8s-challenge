@@ -7,6 +7,6 @@ terraform {
 }
 
 inputs = {
-  cluster_name = "do-challenge"
+  cluster_name = "sunshuu-kubeflow"
   kube_path    = "${get_parent_terragrunt_dir()}/../../kube/config"
 }

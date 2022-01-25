@@ -33,12 +33,6 @@ variable "kube_path" {
   description = "Path to the kubeconfig"
 }
 
-variable "registry_name" {
-  type        = string
-  default     = "cannedlobster-do-challenge"
-  description = "Name of the registry"
-}
-
 variable "registry_tier_slug" {
   type        = string
   default     = "starter"

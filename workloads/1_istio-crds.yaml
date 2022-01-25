@@ -1,14 +1,14 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1beta1
 kind: Kustomization
 metadata:
-  name: mpi-operator
+  name: istio-crds
   namespace: flux-system
 spec:
   dependsOn:
-    - name: training-operator
+    - name: cert-manager
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: kubeflow/1.4/mpi-operator
+  path: kubeflow/1.4/istio/crds
   prune: false
   interval: 1m0s

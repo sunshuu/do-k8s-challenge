@@ -33,11 +33,6 @@ resource "digitalocean_kubernetes_cluster" "cluster" {
   }
 }
 
-resource "digitalocean_container_registry" "registry" {
-  name                   = var.registry_name
-  subscription_tier_slug = "starter"
-}
-
 resource "local_file" "kube_config" {
   filename          = var.kube_path
   sensitive_content = digitalocean_kubernetes_cluster.cluster.kube_config[0].raw_config

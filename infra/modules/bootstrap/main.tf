@@ -34,22 +34,6 @@ provider "kubernetes" {
   cluster_ca_certificate = var.cluster_cacert
 }
 
-resource "digitalocean_container_registry_docker_credentials" "example" {
-  registry_name = var.registry_name
-}
-
-resource "kubernetes_secret" "docker_config" {
-  metadata {
-    name      = "docker-config"
-    namespace = "flux-system"
-  }
-  data = {
-    ".dockerconfigjson" = digitalocean_container_registry_docker_credentials.example.docker_credentials
-  }
-  type       = "kubernetes.io/dockerconfigjson"
-  depends_on = [kubernetes_namespace.flux_system]
-}
-
 resource "kubernetes_namespace" "flux_system" {
   metadata {
     name = "flux-system"
