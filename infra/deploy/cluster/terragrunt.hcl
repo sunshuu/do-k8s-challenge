@@ -8,5 +8,5 @@ terraform {
 
 inputs = {
   cluster_name = "do-challenge"
-  kube_path = "${get_parent_terragrunt_dir()}/../../kube/config"
+  kube_path    = "${get_parent_terragrunt_dir()}/../../kube/config"
 }

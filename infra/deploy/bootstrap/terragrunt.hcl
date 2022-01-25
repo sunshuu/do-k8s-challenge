@@ -23,5 +23,5 @@ inputs = {
   github_owner    = "sunshuu"
   github_token    = get_env("GITHUB_TOKEN")
   repository_name = "do-k8s-challenge"
-  branch          = "work"
+  branch          = "update"
 }

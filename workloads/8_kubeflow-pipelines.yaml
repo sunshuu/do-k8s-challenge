@@ -1,0 +1,14 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1beta1
+kind: Kustomization
+metadata:
+  name: kubeflow-pipelines
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: kubeflow-istio
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: kubeflow/1.4/kubeflow-pipelines
+  prune: false
+  interval: 1m0s

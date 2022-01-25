@@ -1,0 +1,14 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1beta1
+kind: Kustomization
+metadata:
+  name: volumes
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: profiles
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: kubeflow/1.4/volumes
+  prune: false
+  interval: 1m0s

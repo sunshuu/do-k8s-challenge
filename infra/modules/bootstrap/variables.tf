@@ -15,8 +15,8 @@ variable "cluster_cacert" {
 }
 
 variable "target_path" {
-  type = string
-  default = "workloads"
+  type        = string
+  default     = "workloads"
   description = "flux sync target path"
 }
 
@@ -43,6 +43,6 @@ variable "branch" {
 }
 
 variable "registry_name" {
-  type = string
+  type        = string
   description = "Digital Ocean registry name"
 }

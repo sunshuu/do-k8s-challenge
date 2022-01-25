@@ -39,7 +39,7 @@ resource "digitalocean_container_registry" "registry" {
 }
 
 resource "local_file" "kube_config" {
-  filename = var.kube_path
+  filename          = var.kube_path
   sensitive_content = digitalocean_kubernetes_cluster.cluster.kube_config[0].raw_config
-  file_permission = "0400"
+  file_permission   = "0400"
 }
