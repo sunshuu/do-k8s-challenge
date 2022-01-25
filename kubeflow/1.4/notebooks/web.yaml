@@ -680,7 +680,7 @@ spec:
       containers:
       - env:
         - name: APP_SECURE_COOKIES
-          value: false
+          value: "false"
         - name: APP_PREFIX
           value: /jupyter
         - name: UI
