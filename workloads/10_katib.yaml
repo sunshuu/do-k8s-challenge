@@ -1,0 +1,14 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1beta1
+kind: Kustomization
+metadata:
+  name: katib
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: kubeflow-kfserving
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: kubeflow/1.4/katib
+  prune: false
+  interval: 1m0s
