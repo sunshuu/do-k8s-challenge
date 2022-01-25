@@ -9,6 +9,6 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: kubeflow/1.4/istio-install
+  path: kubeflow/1.4/istio/install
   prune: false
   interval: 1m0s
